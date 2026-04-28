@@ -28,3 +28,7 @@ coverage
 *.sw?
 
 *.tsbuildinfo
+
+# backend runtime data
+backend/data/*
+!backend/data/.gitkeep
