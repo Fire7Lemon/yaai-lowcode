@@ -26,6 +26,20 @@ function handleNodeClick(data: NodeTreeItem) {
 }
 
 const defaultSlotOptions = ['main', 'left', 'right', 'header', 'footer', 'tab_1', 'tab_2']
+const nodeTypeLabelMap: Record<string, string> = {
+  container: '容器节点',
+  component: '组件节点',
+  fragment_ref: '片段引用节点',
+}
+const slotLabelMap: Record<string, string> = {
+  main: '主槽位',
+  left: '左侧槽位',
+  right: '右侧槽位',
+  header: '头部槽位',
+  footer: '底部槽位',
+  tab_1: '标签1槽位',
+  tab_2: '标签2槽位',
+}
 
 const flatItems = computed(() => {
   const result: NodeTreeItem[] = []
@@ -169,6 +183,20 @@ function resolveFragmentName(node: NodeTreeItem) {
   return props.fragmentNameMap?.[node.ref_fragment_id] ?? `片段#${node.ref_fragment_id}`
 }
 
+function resolveNodeTypeLabel(nodeType: string | null) {
+  if (!nodeType) {
+    return '未命名类型'
+  }
+  return nodeTypeLabelMap[nodeType] ?? `未命名类型（${nodeType}）`
+}
+
+function resolveSlotLabel(slotName: string | null) {
+  if (!slotName) {
+    return slotLabelMap.main
+  }
+  return slotLabelMap[slotName] ?? `自定义槽位：${slotName}`
+}
+
 </script>
 
 <template>
@@ -176,8 +204,8 @@ function resolveFragmentName(node: NodeTreeItem) {
     <template #header>
       <div class="app-card__header-line">
         <div class="app-card__title-group">
-          <div class="app-card__title">节点树</div>
-            <p class="app-card__description">优先服务纵向扫描与点选，次信息下沉到第二行，减少横向拥挤。</p>
+          <div class="app-card__title">页面结构树</div>
+            <p class="app-card__description">用于查看页面结构树并快速选中节点；小空间区域可简称节点树。</p>
         </div>
         <span class="app-card__meta">{{ flatItems.length }} 个节点</span>
       </div>
@@ -202,8 +230,8 @@ function resolveFragmentName(node: NodeTreeItem) {
                 </el-tag>
               </div>
               <div class="tree-node__meta">
-                <span class="tree-node__meta-item">类型：{{ data.node_type }}</span>
-                <span class="tree-node__meta-item">slot：{{ data.slot_name || 'main' }}</span>
+                <span class="tree-node__meta-item">类型：{{ resolveNodeTypeLabel(data.node_type) }}</span>
+                <span class="tree-node__meta-item">插槽：{{ resolveSlotLabel(data.slot_name) }}</span>
                 <span class="tree-node__meta-item">层级：{{ data.depth ?? 0 }}</span>
                 <span class="tree-node__meta-item">排序：{{ data.sort_order ?? '-' }}</span>
                 <span v-if="data.node_type === 'fragment_ref'" class="tree-node__fragment">

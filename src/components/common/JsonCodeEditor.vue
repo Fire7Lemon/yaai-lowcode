@@ -9,12 +9,12 @@ defineProps<{
 
 <template>
   <div class="json-editor">
-    <div class="json-editor__label">JSON</div>
+    <div class="json-editor__label">JSON 配置</div>
     <el-input
       v-model="model"
       type="textarea"
       :rows="rows ?? 8"
-      :placeholder="placeholder ?? '请输入 JSON 文本'"
+      :placeholder="placeholder ?? '请输入 JSON 配置内容'"
       class="json-editor__input"
     />
   </div>

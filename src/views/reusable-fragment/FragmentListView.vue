@@ -15,6 +15,14 @@ const query = reactive({
   fragment_type: '',
 })
 
+const fragmentTypeLabelMap: Record<string, string> = {
+  header_section: '顶部区块',
+  footer_section: '底部区块',
+  hero_section: '首屏区块',
+  news_section: '资讯区块',
+  links_section: '链接区块',
+}
+
 async function load() {
   loading.value = true
   try {
@@ -39,9 +47,9 @@ onMounted(load)
   <div class="app-page list-view">
     <section class="app-page__header">
       <div class="app-page__title-group">
-        <div class="app-page__eyebrow">Reusable Fragment Management</div>
+        <div class="app-page__eyebrow">局部复用</div>
         <h1 class="app-page__title">可复用片段管理</h1>
-        <p class="app-page__description">统一查看 `reusable_fragment` 列表、类型、说明和编辑器入口。</p>
+        <p class="app-page__description">片段用于跨页面复用局部区块，如页脚、联系方式、横幅等（reusable_fragment）。</p>
       </div>
       <div class="app-page__actions">
         <el-button type="primary" @click="$router.push('/reusable-fragments/create')">新增片段</el-button>
@@ -50,11 +58,16 @@ onMounted(load)
 
     <div class="app-page__content">
       <PageSearchForm title="片段筛选" @search="load" @reset="reset">
-        <el-form-item label="片段名称"><el-input v-model="query.name" /></el-form-item>
-        <el-form-item label="片段编码"><el-input v-model="query.code" /></el-form-item>
+        <el-form-item label="片段名称"><el-input v-model="query.name" placeholder="请输入片段名称" /></el-form-item>
+        <el-form-item label="片段编码"><el-input v-model="query.code" placeholder="请输入片段编码" /></el-form-item>
         <el-form-item label="片段类型">
-          <el-select v-model="query.fragment_type" clearable>
-            <el-option v-for="item in FRAGMENT_TYPE_OPTIONS" :key="item" :label="item" :value="item" />
+          <el-select v-model="query.fragment_type" clearable placeholder="请选择片段类型">
+            <el-option
+              v-for="item in FRAGMENT_TYPE_OPTIONS"
+              :key="item"
+              :label="fragmentTypeLabelMap[item] ?? item"
+              :value="item"
+            />
           </el-select>
         </el-form-item>
       </PageSearchForm>
@@ -64,7 +77,7 @@ onMounted(load)
           <div class="app-card__header-line">
             <div class="app-card__title-group">
               <div class="app-card__title">可复用片段列表</div>
-              <p class="app-card__description">保持统一筛选区、列表卡片和主操作位置，提升测试时的纵向节奏稳定性。</p>
+              <p class="app-card__description">可在此维护局部复用区块，并进入编辑器调整片段结构。</p>
             </div>
             <span class="app-card__meta">共 {{ items.length }} 个片段</span>
           </div>
@@ -73,7 +86,11 @@ onMounted(load)
         <el-table-column prop="id" label="ID" width="72" />
         <el-table-column prop="name" label="片段名称" min-width="140" />
         <el-table-column prop="code" label="片段编码" min-width="140" />
-        <el-table-column prop="fragment_type" label="片段类型" width="140" />
+        <el-table-column label="片段类型" width="140">
+          <template #default="{ row }">
+            {{ fragmentTypeLabelMap[row.fragment_type ?? ''] ?? row.fragment_type ?? '-' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="description" label="说明" min-width="180" />
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
@@ -85,7 +102,7 @@ onMounted(load)
           <template #default="{ row }">
             <el-button link type="primary" @click="$router.push(`/reusable-fragments/${row.id}/edit`)">编辑</el-button>
             <el-button link type="primary" @click="$router.push(`/reusable-fragments/${row.id}/editor`)">编辑器</el-button>
-            <el-popconfirm title="确认删除片段？" @confirm="deleteReusableFragment(row.id).then(load)">
+            <el-popconfirm title="确认删除该片段吗？删除后不可恢复。" @confirm="deleteReusableFragment(row.id).then(load)">
               <template #reference>
                 <el-button link type="danger">删除</el-button>
               </template>

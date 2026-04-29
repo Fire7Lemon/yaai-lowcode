@@ -94,7 +94,7 @@ function resolveInsertTarget() {
 async function handleMove(event: { id: number; move: MovePageNodeInput }) {
   const result = await editorStore.moveNode(event.id, event.move)
   if (!result) {
-    ElMessage.error('节点移动失败')
+    ElMessage.error('节点调整失败，请稍后重试')
   }
 }
 
@@ -143,7 +143,7 @@ async function createNode(payload: CreatePageNodeInput) {
 async function handleAddComponent(componentKey?: string) {
   const targetKey = componentKey ?? defaultComponentKey.value
   if (!targetKey) {
-    ElMessage.warning('暂无可新增的组件定义')
+    ElMessage.warning('暂无可用组件，请先在组件定义中启用组件')
     return
   }
 
@@ -151,29 +151,29 @@ async function handleAddComponent(componentKey?: string) {
   const nodeType: PageNodeType = component?.is_container ? 'container' : 'component'
   const created = await createNode(buildBaseNode(targetKey, nodeType))
   if (!created) {
-    ElMessage.error('组件节点新增失败')
+    ElMessage.error('组件新增失败，请稍后重试')
     return
   }
-  ElMessage.success('组件节点已新增')
+  ElMessage.success('组件已添加')
 }
 
 async function handleAddContainer() {
   if (!containerComponentKey.value) {
-    ElMessage.warning('暂无可新增的容器组件')
+    ElMessage.warning('暂无可用容器组件，请先在组件定义中启用容器')
     return
   }
 
   const created = await createNode(buildBaseNode(containerComponentKey.value, 'container'))
   if (!created) {
-    ElMessage.error('容器节点新增失败')
+    ElMessage.error('容器新增失败，请稍后重试')
     return
   }
-  ElMessage.success('容器节点已新增')
+  ElMessage.success('容器已添加')
 }
 
 function handleAddFragment() {
   if (!fragmentItems.value.length) {
-    ElMessage.warning('暂无可引用的片段')
+    ElMessage.warning('暂无可引用片段，请先在片段管理中创建')
     return
   }
   fragmentDialogMode.value = 'create'
@@ -184,10 +184,10 @@ function handleAddFragment() {
 async function handleCopyNode(id: number) {
   const result = await editorStore.copyNode(id)
   if (!result) {
-    ElMessage.error('节点复制失败')
+    ElMessage.error('复制失败，请稍后重试')
     return
   }
-  ElMessage.success('节点已复制')
+  ElMessage.success('复制成功')
 }
 
 async function handleCopySelectedNode() {
@@ -213,10 +213,10 @@ async function handleDeleteNode(id: number) {
 
   const result = await editorStore.deleteNode(id)
   if (!result) {
-    ElMessage.error('节点删除失败')
+    ElMessage.error('删除失败，请稍后重试')
     return
   }
-  ElMessage.success('节点已删除')
+  ElMessage.success('删除成功')
 }
 
 function handleReplaceFragmentRequest(id: number) {
@@ -228,14 +228,14 @@ function handleReplaceFragmentRequest(id: number) {
 async function handleFragmentDialogConfirm(fragmentId: number) {
   const fragment = fragmentItems.value.find((item) => item.id === fragmentId)
   if (!fragment) {
-    ElMessage.error('片段不存在')
+    ElMessage.error('未找到所选片段，请重新选择')
     return
   }
 
   if (fragmentDialogMode.value === 'create') {
     const created = await createNode(buildBaseNode(null, 'fragment_ref', fragment.id))
     if (!created) {
-      ElMessage.error('片段引用新增失败')
+      ElMessage.error('片段引用新增失败，请稍后重试')
       return
     }
 
@@ -245,7 +245,7 @@ async function handleFragmentDialogConfirm(fragmentId: number) {
       node_type: 'fragment_ref',
       component_key: null,
     })
-    ElMessage.success('片段引用节点已新增')
+    ElMessage.success('片段引用已添加')
     return
   }
 
@@ -260,10 +260,10 @@ async function handleFragmentDialogConfirm(fragmentId: number) {
     component_key: null,
   })
   if (!updated) {
-    ElMessage.error('引用片段替换失败')
+    ElMessage.error('片段替换失败，请稍后重试')
     return
   }
-  ElMessage.success('引用片段已更新')
+  ElMessage.success('片段引用已更新')
 }
 
 const saveLabel = computed(() => {
@@ -286,13 +286,13 @@ async function handleSave() {
   try {
     const response = await editorStore.saveTree()
     if (!response) {
-      ElMessage.error(`${saveLabel.value}保存失败`)
+      ElMessage.error(`${saveLabel.value}保存失败，请稍后重试`)
       return
     }
 
-    ElMessage.success(`${saveLabel.value}已保存`)
+    ElMessage.success(`${saveLabel.value}已保存，请以重载结果为准`)
   } catch {
-    ElMessage.error(`${saveLabel.value}保存失败`)
+    ElMessage.error(`${saveLabel.value}保存失败，请检查网络或稍后重试`)
   }
 }
 
@@ -304,10 +304,10 @@ onMounted(load)
     <section class="app-page__header editor-workspace__header">
       <div class="app-page__title-group">
         <h1 class="app-page__title">{{ saveLabel }}编辑器</h1>
-        <p class="app-page__description">当前工作区保持既有主线不变，重点收紧布局并强化中间预览区焦点。</p>
+        <p class="app-page__description">围绕页面结构树进行编辑；支持新增、调整、绑定、预览与保存。</p>
       </div>
       <el-alert
-        title="仅做界面收口，不改核心交互。"
+        title="保存后系统会自动重载页面结构树，请以重载结果为准。"
         type="info"
         :closable="false"
         class="editor-workspace__alert"

@@ -68,10 +68,10 @@ onMounted(load)
   <div class="app-page app-form-page page-form-view">
     <section class="app-page__header">
       <div class="app-page__title-group">
-        <div class="app-page__eyebrow">Page Form</div>
+        <div class="app-page__eyebrow">页面基础信息</div>
         <h1 class="app-page__title">{{ isEdit ? '编辑页面' : '新建页面' }}</h1>
         <p class="app-page__description">
-          标准表单页样板：统一页面头部、主表单卡片、字段分组与底部操作区，后续将复用于模板页和片段页。
+          用于维护页面基础信息，保存后可进入版本管理继续编辑与发布。
         </p>
       </div>
       <div class="app-page__actions">
@@ -85,7 +85,7 @@ onMounted(load)
           <div class="app-card__header-line">
             <div class="app-card__title-group">
               <div class="app-card__title">页面基础信息</div>
-              <p class="app-card__description">保持字段顺序不变，只通过统一分组和宽度承载提升表单页完成度。</p>
+              <p class="app-card__description">请先完成名称、编码、访问路径等核心信息，再进入版本链路。</p>
             </div>
           </div>
         </template>
@@ -93,31 +93,31 @@ onMounted(load)
           <el-form label-width="110px">
             <section class="app-form-section">
               <h3 class="app-form-section__title">基础字段</h3>
-              <p class="app-form-section__description">用于定义页面主键标识、访问路径和类型。</p>
+              <p class="app-form-section__description">用于定义页面标识、访问路径和页面类型。</p>
               <div class="app-form-grid">
-                <el-form-item label="页面名称"><el-input v-model="form.name" /></el-form-item>
-                <el-form-item label="页面编码"><el-input v-model="form.code" /></el-form-item>
-                <el-form-item label="访问路径"><el-input v-model="form.path" /></el-form-item>
+                <el-form-item label="页面名称"><el-input v-model="form.name" placeholder="例如：学校首页" /></el-form-item>
+                <el-form-item label="页面编码"><el-input v-model="form.code" placeholder="例如：school-home" /></el-form-item>
+                <el-form-item label="访问路径"><el-input v-model="form.path" placeholder="例如：/home" /></el-form-item>
                 <el-form-item label="页面类型">
                   <el-select v-model="form.page_type">
                     <el-option v-for="item in PAGE_TYPE_OPTIONS" :key="item" :label="item" :value="item" />
                   </el-select>
                 </el-form-item>
-                <el-form-item label="页面标题"><el-input v-model="form.title" /></el-form-item>
+                <el-form-item label="页面标题"><el-input v-model="form.title" placeholder="用于页面抬头展示" /></el-form-item>
                 <el-form-item label="状态"><el-switch v-model="form.status" /></el-form-item>
               </div>
             </section>
 
             <section class="app-form-section">
               <h3 class="app-form-section__title">SEO 与补充说明</h3>
-              <p class="app-form-section__description">较长文本字段集中承载，避免页面显得过窄、过空。</p>
-              <el-form-item label="SEO 标题"><el-input v-model="form.seo_title" /></el-form-item>
-              <el-form-item label="SEO 关键词"><el-input v-model="form.seo_keywords" /></el-form-item>
+              <p class="app-form-section__description">用于搜索展示和运营备注，可按需填写。</p>
+              <el-form-item label="SEO 标题"><el-input v-model="form.seo_title" placeholder="可选" /></el-form-item>
+              <el-form-item label="SEO 关键词"><el-input v-model="form.seo_keywords" placeholder="可选，多个关键词可用逗号分隔" /></el-form-item>
               <el-form-item label="SEO 描述">
-                <el-input v-model="form.seo_description" type="textarea" :rows="4" />
+                <el-input v-model="form.seo_description" type="textarea" :rows="4" placeholder="可选" />
               </el-form-item>
               <el-form-item label="备注">
-                <el-input v-model="form.remark" type="textarea" :rows="4" />
+                <el-input v-model="form.remark" type="textarea" :rows="4" placeholder="记录页面用途或维护说明" />
               </el-form-item>
             </section>
 

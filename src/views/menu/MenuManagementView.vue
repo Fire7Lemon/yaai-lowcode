@@ -22,6 +22,10 @@ function resolvePageName(pageId: number | null) {
   return pages.value.find((item) => item.id === pageId)?.name ?? '-'
 }
 
+function resolveUrlTypeLabel(urlType: Menu['url_type']) {
+  return urlType === 'page' ? '站内页面' : '外部链接'
+}
+
 onMounted(load)
 </script>
 
@@ -29,8 +33,9 @@ onMounted(load)
   <div class="app-page menu-view">
     <section class="app-page__header">
       <div class="app-page__title-group">
+        <div class="app-page__eyebrow">导航核对页</div>
         <h1 class="app-page__title">菜单管理</h1>
-        <p class="app-page__description">集中查看菜单层级、链接类型与页面映射关系。</p>
+        <p class="app-page__description">用于核对导航结构与页面映射关系，确认前台菜单是否配置正确。</p>
       </div>
     </section>
 
@@ -39,13 +44,14 @@ onMounted(load)
         <template #header>
           <div class="app-card__header-line">
             <div class="app-card__title-group">
-              <div class="app-card__title">菜单树</div>
-              <p class="app-card__description">以树形结构快速核对导航配置与页面挂载关系。</p>
+              <div class="app-card__title">导航结构树</div>
+              <p class="app-card__description">按层级查看导航项、链接目标和页面对应关系。</p>
             </div>
             <span class="app-card__meta">共 {{ items.length }} 个菜单节点</span>
           </div>
         </template>
         <div class="menu-view__tree-shell">
+          <el-empty v-if="!tree.length" description="暂无导航数据" :image-size="72" />
           <el-tree :data="tree" node-key="id" default-expand-all :props="{ children: 'children', label: 'name' }">
             <template #default="{ data }">
               <div class="menu-view__node">
@@ -53,7 +59,7 @@ onMounted(load)
                   <div class="menu-view__node-name">{{ data.name }}</div>
                   <div class="menu-view__meta">
                     <span>编码：{{ data.code }}</span>
-                    <span>链接类型：{{ data.url_type }}</span>
+                    <span>链接类型：{{ resolveUrlTypeLabel(data.url_type) }}</span>
                     <span v-if="data.url_type === 'page'">页面：{{ resolvePageName(data.page_id) }}</span>
                     <span v-else>外链：{{ data.external_url }}</span>
                   </div>

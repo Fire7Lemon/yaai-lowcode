@@ -1,11 +1,11 @@
 <script setup lang="ts">
 const cards = [
-  { title: '页面管理', path: '/pages', description: '围绕 page 与 page_version 管理页面和版本。' },
-  { title: '页面模板', path: '/page-templates', description: '围绕 page_template 管理整页模板。' },
-  { title: '可复用片段', path: '/reusable-fragments', description: '围绕 reusable_fragment 管理片段复用。' },
-  { title: '组件定义', path: '/component-defs', description: '围绕 component_def 管理组件注册中心。' },
-  { title: '数据绑定', path: '/data-bindings', description: '围绕 data_binding 管理统一绑定配置。' },
-  { title: '菜单管理', path: '/menus', description: '围绕 menu 维护导航入口。' },
+  { title: '页面管理', path: '/pages', description: '管理页面与页面版本（page / page_version）。' },
+  { title: '页面模板', path: '/page-templates', description: '管理整页模板（page_template）。' },
+  { title: '可复用片段', path: '/reusable-fragments', description: '管理可复用片段（reusable_fragment）。' },
+  { title: '组件定义', path: '/component-defs', description: '管理组件配置中心（component_def）。' },
+  { title: '数据绑定', path: '/data-bindings', description: '管理数据绑定配置（data_binding）。' },
+  { title: '菜单管理', path: '/menus', description: '维护导航菜单与页面映射（menu）。' },
 ]
 </script>
 
@@ -13,17 +13,17 @@ const cards = [
   <div class="app-page workbench">
     <section class="app-page__header">
       <div class="app-page__title-group">
-        <div class="app-page__eyebrow">Workbench</div>
+        <div class="app-page__eyebrow">工作台总览</div>
         <h1 class="app-page__title">工作台</h1>
         <p class="app-page__description">
-          当前后台前端已经完成统一页面骨架与编辑器主工作区整改，工作台继续作为进入各核心模块的概览页。
+          从这里可快速进入页面、模板、片段、组件、数据绑定和菜单等核心模块。
         </p>
       </div>
     </section>
 
     <div class="app-page__content">
       <el-alert
-        title="当前工程已切换为平台型低代码后台骨架，所有视图严格围绕数据库字段和 page_node 主线展开。"
+        title="当前系统已按既定模型收口，页面结构树（page_node）是编辑器主线。"
         type="success"
         :closable="false"
       />

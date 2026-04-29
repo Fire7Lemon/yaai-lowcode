@@ -51,7 +51,7 @@ function handleConfirm() {
     <div class="fragment-dialog">
       <div class="fragment-dialog__intro">
         <div class="fragment-dialog__title">选择片段目标</div>
-        <p class="fragment-dialog__description">创建或替换片段引用时，统一在这里确认目标片段，避免只看 ID 操作。</p>
+        <p class="fragment-dialog__description">创建或替换片段引用时，请先确认片段名称与编码，避免仅按 ID 操作。</p>
       </div>
       <FragmentReferencePicker v-model="draftFragmentId" />
       <el-empty v-if="!currentFragment" description="请选择一个可复用片段" :image-size="72" />

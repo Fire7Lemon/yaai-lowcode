@@ -20,7 +20,7 @@ onMounted(async () => {
       <div class="app-card__header-line">
         <div class="app-card__title-group">
           <div class="app-card__title">组件面板</div>
-          <p class="app-card__description">从 `component_def` 快速新增节点，保持与编辑器主线一致。</p>
+          <p class="app-card__description">从组件定义中快速添加节点（component_def）。</p>
         </div>
       </div>
     </template>

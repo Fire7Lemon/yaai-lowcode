@@ -47,7 +47,7 @@ onMounted(load)
     <section class="app-page__header">
       <div class="app-page__title-group">
         <h1 class="app-page__title">页面管理</h1>
-        <p class="app-page__description">围绕页面主数据、版本入口和编辑器跳转进行集中管理。</p>
+        <p class="app-page__description">集中管理页面基础信息，并快速进入版本管理与页面编辑器。</p>
       </div>
       <div class="app-page__actions">
         <el-button type="primary" @click="$router.push('/pages/create')">新增页面</el-button>
@@ -77,7 +77,7 @@ onMounted(load)
           <div class="app-card__header-line">
             <div class="app-card__title-group">
               <div class="app-card__title">页面列表</div>
-              <p class="app-card__description">优先保证筛选后尽快进入真实数据区。</p>
+              <p class="app-card__description">建议先筛选页面，再进入版本管理执行编辑与发布。</p>
             </div>
             <span class="app-card__meta">共 {{ items.length }} 条</span>
           </div>
@@ -95,7 +95,7 @@ onMounted(load)
               <EntityStatusTag :status="row.status" />
             </template>
           </el-table-column>
-          <el-table-column prop="current_version_id" label="当前发布版本" width="120" />
+          <el-table-column prop="current_version_id" label="当前版本" width="120" />
           <el-table-column prop="updated_at" label="更新时间" min-width="180" />
           <el-table-column label="操作" width="280" fixed="right">
             <template #default="{ row }">
@@ -109,7 +109,7 @@ onMounted(load)
               >
                 编辑器
               </el-button>
-              <el-popconfirm title="确认删除该页面？" @confirm="handleDelete(row.id)">
+              <el-popconfirm title="确认删除该页面吗？删除后不可恢复。" @confirm="handleDelete(row.id)">
                 <template #reference>
                   <el-button link type="danger">删除</el-button>
                 </template>

@@ -21,6 +21,13 @@ const form = reactive({
   remark: '',
 })
 
+const sceneTypeLabelMap: Record<string, string> = {
+  portal_home: '首页场景',
+  news_channel: '新闻列表场景',
+  single_page: '通用内容页场景',
+  landing_page: '专题页场景',
+}
+
 async function load() {
   if (!isEdit.value) {
     return
@@ -61,9 +68,9 @@ onMounted(load)
   <div class="app-page app-form-page template-form-view">
     <section class="app-page__header">
       <div class="app-page__title-group">
-        <div class="app-page__eyebrow">Page Template Form</div>
+        <div class="app-page__eyebrow">整页模板配置</div>
         <h1 class="app-page__title">{{ isEdit ? '编辑页面模板' : '新建页面模板' }}</h1>
-        <p class="app-page__description">复用 `PageFormView` 的标准表单页样板，只在字段内容上保持模板语义差异。</p>
+        <p class="app-page__description">模板是页面搭建的整页起点，可用于快速创建页面版本。</p>
       </div>
       <div class="app-page__actions">
         <el-button @click="$router.back()">返回列表</el-button>
@@ -76,7 +83,7 @@ onMounted(load)
           <div class="app-card__header-line">
             <div class="app-card__title-group">
               <div class="app-card__title">模板基础信息</div>
-              <p class="app-card__description">在统一骨架中承载模板名称、场景、预览图和说明字段。</p>
+              <p class="app-card__description">请先完成模板名称、适用场景和预览信息，便于后续复用。</p>
             </div>
           </div>
         </template>
@@ -84,25 +91,34 @@ onMounted(load)
           <el-form label-width="110px">
             <section class="app-form-section">
               <h3 class="app-form-section__title">模板字段</h3>
-              <p class="app-form-section__description">保持原字段顺序，增强宽度利用和表单层次。</p>
+              <p class="app-form-section__description">用于定义模板基础信息与适用范围。</p>
               <div class="app-form-grid">
-                <el-form-item label="模板名称"><el-input v-model="form.name" /></el-form-item>
-                <el-form-item label="模板编码"><el-input v-model="form.code" /></el-form-item>
-                <el-form-item label="场景类型">
+                <el-form-item label="模板名称"><el-input v-model="form.name" placeholder="例如：官网首页模板" /></el-form-item>
+                <el-form-item label="模板编码"><el-input v-model="form.code" placeholder="例如：official-home-template" /></el-form-item>
+                <el-form-item label="适用场景">
                   <el-select v-model="form.scene_type">
-                    <el-option v-for="item in PAGE_TEMPLATE_SCENE_OPTIONS" :key="item" :label="item" :value="item" />
+                    <el-option
+                      v-for="item in PAGE_TEMPLATE_SCENE_OPTIONS"
+                      :key="item"
+                      :label="sceneTypeLabelMap[item] ?? item"
+                      :value="item"
+                    />
                   </el-select>
                 </el-form-item>
                 <el-form-item label="状态"><el-switch v-model="form.status" /></el-form-item>
               </div>
-              <el-form-item label="预览图"><el-input v-model="form.preview_image" /></el-form-item>
+              <el-form-item label="预览图"><el-input v-model="form.preview_image" placeholder="请输入预览图链接（可选）" /></el-form-item>
             </section>
 
             <section class="app-form-section">
               <h3 class="app-form-section__title">说明信息</h3>
-              <p class="app-form-section__description">长文本字段集中放置，保证页面不再显得窄而空。</p>
-              <el-form-item label="模板说明"><el-input v-model="form.description" type="textarea" :rows="4" /></el-form-item>
-              <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" :rows="4" /></el-form-item>
+              <p class="app-form-section__description">可说明模板用途与适用页面类型，方便团队复用。</p>
+              <el-form-item label="模板说明">
+                <el-input v-model="form.description" type="textarea" :rows="4" placeholder="例如：适用于官网首页，含首屏、资讯、公告与联系区块" />
+              </el-form-item>
+              <el-form-item label="备注">
+                <el-input v-model="form.remark" type="textarea" :rows="4" placeholder="可填写维护说明" />
+              </el-form-item>
             </section>
 
             <div class="app-form-actions">

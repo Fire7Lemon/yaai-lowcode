@@ -31,7 +31,7 @@ function handleSelect(index: string) {
       <div class="sidebar__brand-mark">Y</div>
       <div class="sidebar__brand-copy">
         <div class="sidebar__brand-title">平台型低代码后台</div>
-        <div class="sidebar__brand-subtitle">YAAI Admin Console</div>
+        <div class="sidebar__brand-subtitle">YAAI 后台控制台</div>
       </div>
     </div>
     <el-menu

@@ -47,17 +47,46 @@ const propSummary = computed(() => {
             : String(value),
     }))
 })
+
+const nodeTypeLabelMap: Record<string, string> = {
+  container: '容器节点',
+  component: '组件节点',
+  fragment_ref: '片段引用节点',
+}
+const slotLabelMap: Record<string, string> = {
+  main: '主槽位',
+  left: '左侧槽位',
+  right: '右侧槽位',
+  header: '头部槽位',
+  footer: '底部槽位',
+  tab_1: '标签1槽位',
+  tab_2: '标签2槽位',
+}
+
+function resolveNodeTypeLabel(nodeType: string | null) {
+  if (!nodeType) {
+    return '未命名类型'
+  }
+  return nodeTypeLabelMap[nodeType] ?? `未命名类型（${nodeType}）`
+}
+
+function resolveSlotLabel(slotName: string | null) {
+  if (!slotName) {
+    return slotLabelMap.main
+  }
+  return slotLabelMap[slotName] ?? `自定义槽位：${slotName}`
+}
 </script>
 
 <template>
   <NodeOutlineBox
     :active="props.selectedNodeId === props.node.id"
     :title="props.node.node_name || '未命名节点'"
-    :subtitle="`${props.node.node_type} / ${componentDef?.component_name ?? props.node.component_key ?? '片段引用'}`"
+    :subtitle="`${resolveNodeTypeLabel(props.node.node_type)} / ${componentDef?.component_name ?? props.node.component_key ?? '片段引用'}`"
     @click="emit('select', props.node.id)"
   >
     <div class="node-renderer__meta">
-      <el-tag size="small" effect="plain">{{ props.node.slot_name || 'main' }}</el-tag>
+      <el-tag size="small" effect="plain">{{ resolveSlotLabel(props.node.slot_name) }}</el-tag>
       <el-tag v-if="binding" size="small" effect="plain" type="success">数据绑定：{{ binding.name }}</el-tag>
     </div>
     <div v-if="propSummary.length" class="node-renderer__props">

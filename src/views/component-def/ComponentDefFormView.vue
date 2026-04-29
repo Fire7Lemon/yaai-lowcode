@@ -34,6 +34,29 @@ const form = reactive({
   remark: '',
 })
 
+const componentGroupLabelMap: Record<string, string> = {
+  layout: '布局类',
+  basic: '基础类',
+  content: '内容类',
+  data_view: '数据展示类',
+  navigation: '导航类',
+  interactive: '交互类',
+}
+
+const componentTypeLabelMap: Record<string, string> = {
+  container: '容器',
+  grid: '网格容器',
+  tabs: '标签页容器',
+  hero_banner: '首屏横幅',
+  news_list: '新闻列表',
+  notice_list: '公告列表',
+  rich_text: '富文本',
+  image_text: '图文模块',
+  card_list: '卡片列表',
+  quick_links: '快捷链接',
+  friend_links: '友情链接',
+}
+
 async function load() {
   if (!isEdit.value) {
     return
@@ -87,9 +110,9 @@ onMounted(load)
   <div class="app-page app-form-page component-form">
     <section class="app-page__header">
       <div class="app-page__title-group">
-        <div class="app-page__eyebrow">Component Definition Form</div>
+        <div class="app-page__eyebrow">组件定义配置</div>
         <h1 class="app-page__title">{{ isEdit ? '编辑组件定义' : '新建组件定义' }}</h1>
-        <p class="app-page__description">第二阶段先以统一骨架和分组承载收稳页面，不引入复杂双栏或新的编辑交互。</p>
+        <p class="app-page__description">用于定义“组件能配置什么、支持哪些能力、默认如何展示”。</p>
       </div>
       <div class="app-page__actions">
         <el-button @click="$router.back()">返回列表</el-button>
@@ -102,7 +125,7 @@ onMounted(load)
           <div class="app-card__header-line">
             <div class="app-card__title-group">
               <div class="app-card__title">组件定义配置</div>
-              <p class="app-card__description">先稳定基础字段、能力开关和 JSON 配置区的纵向节奏。</p>
+              <p class="app-card__description">请先完成基础信息，再补充 Schema 与默认配置。</p>
             </div>
           </div>
         </template>
@@ -110,70 +133,94 @@ onMounted(load)
           <el-form label-width="130px">
             <section class="app-form-section">
               <h3 class="app-form-section__title">基础信息</h3>
-              <p class="app-form-section__description">承载组件标识、分组、类型与状态。</p>
+              <p class="app-form-section__description">确定组件身份、用途分类和开关能力。</p>
               <div class="app-form-grid">
-                <el-form-item label="组件 Key"><el-input v-model="form.component_key" /></el-form-item>
-                <el-form-item label="组件名称"><el-input v-model="form.component_name" /></el-form-item>
+                <el-form-item label="组件标识 (component_key)">
+                  <el-input v-model="form.component_key" placeholder="例如：hero_banner" />
+                </el-form-item>
+                <el-form-item label="组件名称"><el-input v-model="form.component_name" placeholder="例如：首页横幅" /></el-form-item>
                 <el-form-item label="组件分组">
                   <el-select v-model="form.component_group">
-                    <el-option v-for="item in COMPONENT_GROUP_OPTIONS" :key="item" :label="item" :value="item" />
+                    <el-option
+                      v-for="item in COMPONENT_GROUP_OPTIONS"
+                      :key="item"
+                      :label="componentGroupLabelMap[item] ?? item"
+                      :value="item"
+                    />
                   </el-select>
                 </el-form-item>
                 <el-form-item label="组件类型">
                   <el-select v-model="form.component_type">
-                    <el-option v-for="item in COMPONENT_TYPE_OPTIONS" :key="item" :label="item" :value="item" />
+                    <el-option
+                      v-for="item in COMPONENT_TYPE_OPTIONS"
+                      :key="item"
+                      :label="componentTypeLabelMap[item] ?? item"
+                      :value="item"
+                    />
                   </el-select>
                 </el-form-item>
-                <el-form-item label="图标"><el-input v-model="form.icon" /></el-form-item>
+                <el-form-item label="图标"><el-input v-model="form.icon" placeholder="可选" /></el-form-item>
                 <el-form-item label="排序"><el-input-number v-model="form.sort_order" :min="0" /></el-form-item>
                 <el-form-item label="是否容器"><el-switch v-model="form.is_container" /></el-form-item>
                 <el-form-item label="允许绑定数据"><el-switch v-model="form.can_bind_data" /></el-form-item>
                 <el-form-item label="允许沉淀片段"><el-switch v-model="form.can_reuse_as_fragment" /></el-form-item>
                 <el-form-item label="状态"><el-switch v-model="form.status" /></el-form-item>
               </div>
-              <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" :rows="4" /></el-form-item>
+              <el-form-item label="备注">
+                <el-input v-model="form.remark" type="textarea" :rows="4" placeholder="可填写组件使用说明" />
+              </el-form-item>
             </section>
 
             <section class="app-form-section">
-              <h3 class="app-form-section__title">Schema 配置</h3>
-              <p class="app-form-section__description">JSON 大字段按能力维度顺序排列，主表单仍是页面主焦点，预览区只作为辅助理解。</p>
+              <h3 class="app-form-section__title">可配置项说明（Schema）</h3>
+              <p class="app-form-section__description">用中文理解“可配置能力”，字段名作为弱提示保留，便于联调与维护。</p>
               <div class="component-form__field-block">
                 <div class="component-form__field-head">
-                  <div class="component-form__field-title">属性 Schema</div>
-                  <p class="component-form__field-description">定义组件 props 的可配置项，是后续属性面板理解组件能力的核心入口。</p>
+                  <div class="component-form__field-title">属性配置（prop_schema_json）</div>
+                  <p class="component-form__field-description">定义这个组件可让用户设置哪些业务属性。</p>
                 </div>
-                <el-form-item label="prop_schema_json"><JsonCodeEditor v-model="form.prop_schema_json" :rows="10" /></el-form-item>
+                <el-form-item label="属性配置 JSON"><JsonCodeEditor v-model="form.prop_schema_json" :rows="10" /></el-form-item>
               </div>
               <div class="component-form__field-block">
                 <div class="component-form__field-head">
-                  <div class="component-form__field-title">样式 / 事件 / 布局 Schema</div>
-                  <p class="component-form__field-description">这三块紧跟属性 Schema，用于补齐样式能力、事件能力与布局能力。</p>
+                  <div class="component-form__field-title">样式/事件/布局配置（Schema）</div>
+                  <p class="component-form__field-description">用于定义样式能力、交互事件和布局能力。</p>
                 </div>
-                <el-form-item label="style_schema_json"><JsonCodeEditor v-model="form.style_schema_json" :rows="10" /></el-form-item>
-                <el-form-item label="event_schema_json"><JsonCodeEditor v-model="form.event_schema_json" :rows="8" /></el-form-item>
-                <el-form-item label="layout_schema_json"><JsonCodeEditor v-model="form.layout_schema_json" :rows="8" /></el-form-item>
+                <el-form-item label="样式配置 (style_schema_json)">
+                  <JsonCodeEditor v-model="form.style_schema_json" :rows="10" />
+                </el-form-item>
+                <el-form-item label="事件配置 (event_schema_json)">
+                  <JsonCodeEditor v-model="form.event_schema_json" :rows="8" />
+                </el-form-item>
+                <el-form-item label="布局配置 (layout_schema_json)">
+                  <JsonCodeEditor v-model="form.layout_schema_json" :rows="8" />
+                </el-form-item>
               </div>
             </section>
 
             <section class="app-form-section">
               <h3 class="app-form-section__title">默认值与子节点约束</h3>
-              <p class="app-form-section__description">把子节点约束和默认值合并在一组，形成“结构约束 + 默认落地”的完整阅读路径。</p>
+              <p class="app-form-section__description">明确这个组件默认长什么样、能承载哪些子节点。</p>
               <div class="component-form__field-block">
                 <div class="component-form__field-head">
-                  <div class="component-form__field-title">子节点约束</div>
-                  <p class="component-form__field-description">用于说明当前组件允许承载哪些节点类型，帮助快速判断容器语义。</p>
+                  <div class="component-form__field-title">子节点约束（allowed_child_types_json）</div>
+                  <p class="component-form__field-description">用于说明该组件可承载的子节点类型。</p>
                 </div>
-                <el-form-item label="allowed_child_types_json">
+                <el-form-item label="子节点约束 JSON">
                   <JsonCodeEditor v-model="form.allowed_child_types_json" :rows="8" />
                 </el-form-item>
               </div>
               <div class="component-form__field-block">
                 <div class="component-form__field-head">
                   <div class="component-form__field-title">默认值</div>
-                  <p class="component-form__field-description">用于描述组件初始化时的默认 props 与默认样式。</p>
+                  <p class="component-form__field-description">用于描述组件初始化时的默认属性与默认样式。</p>
                 </div>
-                <el-form-item label="default_props_json"><JsonCodeEditor v-model="form.default_props_json" :rows="10" /></el-form-item>
-                <el-form-item label="default_style_json"><JsonCodeEditor v-model="form.default_style_json" :rows="10" /></el-form-item>
+                <el-form-item label="默认属性 (default_props_json)">
+                  <JsonCodeEditor v-model="form.default_props_json" :rows="10" />
+                </el-form-item>
+                <el-form-item label="默认样式 (default_style_json)">
+                  <JsonCodeEditor v-model="form.default_style_json" :rows="10" />
+                </el-form-item>
               </div>
             </section>
 
@@ -187,12 +234,12 @@ onMounted(load)
 
       <section class="component-form__assist">
         <div class="component-form__assist-header">
-          <h3 class="component-form__assist-title">Schema 辅助理解区</h3>
-          <p class="component-form__assist-description">这里仅用于辅助阅读当前 Schema 的结构摘要，不替代主表单编辑。</p>
+          <h3 class="component-form__assist-title">Schema 结构预览（辅助）</h3>
+          <p class="component-form__assist-description">此区域仅用于快速查看结构摘要，不会替代主表单编辑。</p>
         </div>
         <div class="app-form-stack">
-        <SchemaPreviewPanel title="属性 Schema 预览" :value="form.prop_schema_json" />
-        <SchemaPreviewPanel title="样式 Schema 预览" :value="form.style_schema_json" />
+        <SchemaPreviewPanel title="属性配置预览（prop_schema_json）" :value="form.prop_schema_json" />
+        <SchemaPreviewPanel title="样式配置预览（style_schema_json）" :value="form.style_schema_json" />
         </div>
       </section>
     </div>

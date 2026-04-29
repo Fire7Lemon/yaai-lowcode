@@ -22,9 +22,22 @@ const emit = defineEmits<{
 
 const parentValue = computed(() => props.currentParentId ?? ROOT_VALUE)
 const slotValue = computed(() => props.currentSlotName ?? 'main')
+const slotLabelMap: Record<string, string> = {
+  main: '主槽位',
+  left: '左侧槽位',
+  right: '右侧槽位',
+  header: '头部槽位',
+  footer: '底部槽位',
+  tab_1: '标签1槽位',
+  tab_2: '标签2槽位',
+}
 
 function handleParentChange(value: string | number) {
   emit('changeParent', value === ROOT_VALUE ? null : Number(value))
+}
+
+function resolveSlotLabel(slotName: string) {
+  return slotLabelMap[slotName] ?? `自定义槽位：${slotName}`
 }
 </script>
 
@@ -66,14 +79,14 @@ function handleParentChange(value: string | number) {
       </el-select>
     </div>
     <div class="node-move-actions__field">
-      <span class="node-move-actions__label">slot</span>
+      <span class="node-move-actions__label">插槽</span>
       <el-select
         :model-value="slotValue"
         size="small"
         class="node-move-actions__select node-move-actions__select--slot"
         @change="emit('changeSlot', $event as string)"
       >
-        <el-option v-for="slot in slotOptions" :key="slot" :label="slot" :value="slot" />
+        <el-option v-for="slot in slotOptions" :key="slot" :label="resolveSlotLabel(slot)" :value="slot" />
       </el-select>
     </div>
   </div>

@@ -18,6 +18,19 @@ const props = defineProps<{
 const emit = defineEmits<{
   patch: [payload: UpdatePageNodeInput]
 }>()
+
+const nodeTypeLabelMap: Record<string, string> = {
+  container: '容器节点',
+  component: '组件节点',
+  fragment_ref: '片段引用节点',
+}
+
+function resolveNodeTypeLabel(nodeType: string | null) {
+  if (!nodeType) {
+    return '未命名类型'
+  }
+  return nodeTypeLabelMap[nodeType] ?? `未命名类型（${nodeType}）`
+}
 </script>
 
 <template>
@@ -27,7 +40,11 @@ const emit = defineEmits<{
         <div class="app-card__title-group">
           <div class="app-card__title">属性面板</div>
           <p class="app-card__description">
-            {{ props.node ? `${props.node.node_name || '未命名节点'} · ${props.node.node_type}` : '选中节点后在此调整属性与绑定配置。' }}
+            {{
+              props.node
+                ? `${props.node.node_name || '未命名节点'} · ${resolveNodeTypeLabel(props.node.node_type)}`
+                : '选中节点后在此调整属性与绑定配置。'
+            }}
           </p>
         </div>
       </div>
