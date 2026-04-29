@@ -434,7 +434,10 @@ export async function getVersionNodeTree(versionId: number): Promise<PageVersion
     try {
       return await fetchRealVersionNodeTree(versionId)
     } catch (error) {
-      console.error('[getVersionNodeTree] real api failed, fallback to mock.', error)
+      // TEMP: backend compatibility for current delivery
+      // Expose real read failures in integration mode.
+      console.error('[getVersionNodeTree] real api failed in integration mode.', error)
+      throw error
     }
   }
 
@@ -454,7 +457,9 @@ export async function getTemplateNodeTreeNodes(templateId: number): Promise<Page
     try {
       return await fetchRealTemplateNodeTree(templateId)
     } catch (error) {
-      console.error('[getTemplateNodeTreeNodes] real api failed, fallback to mock.', error)
+      // TEMP: backend compatibility for current delivery
+      console.error('[getTemplateNodeTreeNodes] real api failed in integration mode.', error)
+      throw error
     }
   }
 
@@ -476,7 +481,9 @@ export async function getFragmentNodeTreeNodes(
     try {
       return await fetchRealFragmentNodeTree(fragmentId)
     } catch (error) {
-      console.error('[getFragmentNodeTreeNodes] real api failed, fallback to mock.', error)
+      // TEMP: backend compatibility for current delivery
+      console.error('[getFragmentNodeTreeNodes] real api failed in integration mode.', error)
+      throw error
     }
   }
 
@@ -506,12 +513,16 @@ export async function saveVersionNodeTree(
         throw new Error('Save response indicates failure.')
       }
 
+      // TEMP: backend compatibility for current delivery
       // Integration-phase compensation: backend currently returns success marker
       // without nodes/idMap. Force reload to get the latest full tree snapshot.
       const latestTree = await fetchRealVersionNodeTree(versionId)
       return { nodes: latestTree.nodes }
-    } catch {
-      // Keep minimum mock fallback during phased integration.
+    } catch (error) {
+      // TEMP: backend compatibility for current delivery
+      // Expose real save failures in integration mode.
+      console.error('[saveVersionNodeTree] real api failed in integration mode.', error)
+      throw error
     }
   }
 

@@ -111,7 +111,10 @@ export async function listPages(query: PageQuery = {}): Promise<ListResult<Page>
         page_size: Number(data.size ?? data.page_size ?? records.length ?? 0),
       }
     } catch (error) {
-      console.error('[listPages] real api failed, fallback to mock.', error)
+      // TEMP: backend compatibility for current delivery
+      // In integration mode we must expose real failures explicitly.
+      console.error('[listPages] real api failed in integration mode.', error)
+      throw error
     }
   }
 

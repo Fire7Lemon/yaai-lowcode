@@ -9,6 +9,7 @@ import type {
   PublishPageVersionResponse,
 } from '@/types/page-version'
 
+import { requestJson, shouldUseRealApi } from './http-client'
 import { getTemplateNodeTree } from './page-template'
 import { apiDraftMeta, buildListResult, includesQueryValue, mockResolve, nextNumericId } from './mock-client'
 
@@ -26,6 +27,13 @@ export const pageVersionApiDrafts = {
   lock: apiDraftMeta('/page-versions/{id}/lock', 'POST', false, 'TODO: 是否改为 PATCH 待确认'),
   unlock: apiDraftMeta('/page-versions/{id}/unlock', 'POST', false, 'TODO: 是否改为 PATCH 待确认'),
   clone: apiDraftMeta('/page-versions/{id}/clone', 'POST', false, 'TODO: version_name 不传时的命名规则待确认'),
+}
+
+type Envelope<T> = {
+  code?: string
+  success?: boolean
+  message?: string
+  data?: T
 }
 
 function now() {
@@ -109,6 +117,68 @@ function cloneNodesFromTemplate(templateId: number, targetVersionId: number) {
   })
 }
 
+function toNullableString(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null
+  }
+  return String(value)
+}
+
+function toNullableNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function toBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value
+  }
+  if (typeof value === 'number') {
+    return value !== 0
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    return normalized === 'true' || normalized === '1'
+  }
+  return false
+}
+
+function mapPageVersion(raw: unknown): PageVersion {
+  const item = (raw ?? {}) as Record<string, unknown>
+  return {
+    id: Number(item.id ?? 0),
+    page_id: Number(item.page_id ?? item.pageId ?? 0),
+    version_no: Number(item.version_no ?? item.versionNo ?? 0),
+    version_name: toNullableString(item.version_name ?? item.versionName),
+    source_type: (toNullableString(item.source_type ?? item.sourceType) ?? 'manual') as PageVersion['source_type'],
+    source_id: toNullableNumber(item.source_id ?? item.sourceId),
+    status: String(item.status ?? 'draft') as PageVersion['status'],
+    is_locked: toBoolean(item.is_locked ?? item.isLocked),
+    remark: toNullableString(item.remark),
+    created_by: toNullableString(item.created_by ?? item.createdBy),
+    created_at: String(item.created_at ?? item.createdAt ?? ''),
+    updated_at: String(item.updated_at ?? item.updatedAt ?? ''),
+  }
+}
+
+function isNetworkUnreachableError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
+  return (
+    message.includes('failed to fetch')
+    || message.includes('network')
+    || message.includes('timed out')
+    || message.includes('timeout')
+    || message.includes('econnrefused')
+    || message.includes('enotfound')
+  )
+}
+
 export async function listPageVersions(pageId: number, query: PageVersionQuery = {}): Promise<ListResult<PageVersion>> {
   const items = pageVersions
     .filter((item) => item.page_id === pageId)
@@ -139,6 +209,35 @@ export async function createPageVersionFromTemplate(
   pageId: number,
   payload: CreatePageVersionFromTemplatePayload,
 ): Promise<PageVersion> {
+  if (shouldUseRealApi()) {
+    const form = new URLSearchParams()
+    form.set('pageId', String(pageId))
+    form.set('templateId', String(payload.template_id))
+    form.set('versionName', payload.version_name ?? '')
+    form.set('remark', payload.remark ?? '')
+
+    try {
+      const raw = await requestJson<Envelope<unknown>>(`/pages/${pageId}/versions/from-template`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: form.toString(),
+      })
+
+      if (raw?.success === false) {
+        throw new Error(raw.message || 'from-template request failed')
+      }
+
+      return mapPageVersion(raw?.data)
+    } catch (error) {
+      // TEMP: backend compatibility for current delivery
+      // Do not fallback to mock for this key integration API.
+      console.error('[createPageVersionFromTemplate] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   // TODO: 后端正式实现时建议对“版本创建 + 模板节点复制”采用事务回滚。
   const item = createVersionRecord(pageId, {
     version_name: payload.version_name,

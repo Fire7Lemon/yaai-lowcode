@@ -194,7 +194,9 @@ export async function getTemplateNodeTree(id: number): Promise<PageTemplateNodeT
     try {
       return await fetchRealTemplateNodeTree(id)
     } catch (error) {
-      console.error('[getTemplateNodeTree] real api failed, fallback to mock.', error)
+      // TEMP: backend compatibility for current delivery
+      console.error('[getTemplateNodeTree] real api failed in integration mode.', error)
+      throw error
     }
   }
 
@@ -223,11 +225,14 @@ export async function saveTemplateNodeTree(
         throw new Error('Save template node-tree response indicates failure.')
       }
 
+      // TEMP: backend compatibility for current delivery
       // Integration-phase compensation: backend may only return success marker.
       const latestTree = await fetchRealTemplateNodeTree(id)
       return { nodes: latestTree.nodes }
     } catch (error) {
-      console.error('[saveTemplateNodeTree] real api failed, fallback to mock.', error)
+      // TEMP: backend compatibility for current delivery
+      console.error('[saveTemplateNodeTree] real api failed in integration mode.', error)
+      throw error
     }
   }
 

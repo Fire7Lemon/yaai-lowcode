@@ -197,7 +197,9 @@ export async function getFragmentNodeTree(id: number): Promise<ReusableFragmentN
     try {
       return await fetchRealFragmentNodeTree(id)
     } catch (error) {
-      console.error('[getFragmentNodeTree] real api failed, fallback to mock.', error)
+      // TEMP: backend compatibility for current delivery
+      console.error('[getFragmentNodeTree] real api failed in integration mode.', error)
+      throw error
     }
   }
 
@@ -226,11 +228,14 @@ export async function saveFragmentNodeTree(
         throw new Error('Save fragment node-tree response indicates failure.')
       }
 
+      // TEMP: backend compatibility for current delivery
       // Integration-phase compensation: backend may only return success marker.
       const latestTree = await fetchRealFragmentNodeTree(id)
       return { nodes: latestTree.nodes }
     } catch (error) {
-      console.error('[saveFragmentNodeTree] real api failed, fallback to mock.', error)
+      // TEMP: backend compatibility for current delivery
+      console.error('[saveFragmentNodeTree] real api failed in integration mode.', error)
+      throw error
     }
   }
 
