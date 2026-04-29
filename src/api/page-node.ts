@@ -12,7 +12,11 @@ import type {
   SavePageNodeTreePayload,
   UpdatePageNodeInput,
 } from '@/types/page-node'
+import type { PageVersion } from '@/types/page-version'
+import type { PageTemplate } from '@/types/page-template'
+import type { ReusableFragment } from '@/types/reusable-fragment'
 
+import { requestJson, shouldUseRealApi } from './http-client'
 import { apiDraftMeta, mockResolve, nextNumericId } from './mock-client'
 
 export const pageNodeApiDrafts = {
@@ -39,6 +43,31 @@ export const pageNodeApiDrafts = {
     false,
     'TODO: 辅助动作接口可选，不作为核心依赖',
   ),
+}
+
+const versionNodeOwnerCache = new Map<number, number>()
+
+type Envelope<T> = {
+  code?: string
+  success?: boolean
+  message?: string
+  data?: T
+}
+
+type VersionNodeTreeData = {
+  nodes?: unknown[]
+  page_version?: unknown
+  pageVersion?: unknown
+}
+
+type TemplateNodeTreeData = {
+  nodes?: unknown[]
+  template?: unknown
+}
+
+type FragmentNodeTreeData = {
+  nodes?: unknown[]
+  fragment?: unknown
 }
 
 function now() {
@@ -146,6 +175,197 @@ function insertIntoSiblingGroup(
   })
 }
 
+function toNullableString(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null
+  }
+  return String(value)
+}
+
+function toNullableNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function toBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value
+  }
+  if (typeof value === 'number') {
+    return value !== 0
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    return normalized === 'true' || normalized === '1'
+  }
+  return false
+}
+
+function mapPageNode(raw: unknown): PageNode {
+  const item = (raw ?? {}) as Record<string, unknown>
+  return {
+    id: Number(item.id ?? 0),
+    page_version_id: toNullableNumber(item.page_version_id ?? item.pageVersionId),
+    template_id: toNullableNumber(item.template_id ?? item.templateId),
+    fragment_id: toNullableNumber(item.fragment_id ?? item.fragmentId),
+    parent_id: toNullableNumber(item.parent_id ?? item.parentId),
+    node_type: String(item.node_type ?? item.nodeType ?? 'component') as PageNode['node_type'],
+    component_key: toNullableString(item.component_key ?? item.componentKey),
+    node_name: toNullableString(item.node_name ?? item.nodeName),
+    slot_name: toNullableString(item.slot_name ?? item.slotName),
+    sort_order: toNullableNumber(item.sort_order ?? item.sortOrder),
+    depth: toNullableNumber(item.depth),
+    col_span: toNullableNumber(item.col_span ?? item.colSpan),
+    row_span: toNullableNumber(item.row_span ?? item.rowSpan),
+    data_binding_id: toNullableNumber(item.data_binding_id ?? item.dataBindingId),
+    ref_fragment_id: toNullableNumber(item.ref_fragment_id ?? item.refFragmentId),
+    props_json: toNullableString(item.props_json ?? item.propsJson),
+    style_json: toNullableString(item.style_json ?? item.styleJson),
+    layout_json: toNullableString(item.layout_json ?? item.layoutJson),
+    event_json: toNullableString(item.event_json ?? item.eventJson),
+    visible_rule_json: toNullableString(item.visible_rule_json ?? item.visibleRuleJson),
+    status: toBoolean(item.status),
+    remark: toNullableString(item.remark),
+    created_at: String(item.created_at ?? item.createdAt ?? ''),
+    updated_at: String(item.updated_at ?? item.updatedAt ?? ''),
+  }
+}
+
+function mapPageVersion(raw: unknown, fallbackVersionId: number): PageVersion {
+  const item = (raw ?? {}) as Record<string, unknown>
+  return {
+    id: Number(item.id ?? fallbackVersionId),
+    page_id: Number(item.page_id ?? item.pageId ?? 0),
+    version_no: Number(item.version_no ?? item.versionNo ?? 0),
+    version_name: toNullableString(item.version_name ?? item.versionName),
+    source_type: String(item.source_type ?? item.sourceType ?? 'manual') as PageVersion['source_type'],
+    source_id: toNullableNumber(item.source_id ?? item.sourceId),
+    status: String(item.status ?? 'draft') as PageVersion['status'],
+    is_locked: toBoolean(item.is_locked ?? item.isLocked),
+    remark: toNullableString(item.remark),
+    created_by: toNullableString(item.created_by ?? item.createdBy),
+    created_at: String(item.created_at ?? item.createdAt ?? ''),
+    updated_at: String(item.updated_at ?? item.updatedAt ?? ''),
+  }
+}
+
+function mapPageTemplate(raw: unknown, fallbackTemplateId: number): PageTemplate {
+  const item = (raw ?? {}) as Record<string, unknown>
+  return {
+    id: Number(item.id ?? fallbackTemplateId),
+    name: String(item.name ?? ''),
+    code: String(item.code ?? ''),
+    scene_type: toNullableString(item.scene_type ?? item.sceneType),
+    preview_image: toNullableString(item.preview_image ?? item.previewImage),
+    description: toNullableString(item.description),
+    status: toBoolean(item.status),
+    remark: toNullableString(item.remark),
+    created_at: String(item.created_at ?? item.createdAt ?? ''),
+    updated_at: String(item.updated_at ?? item.updatedAt ?? ''),
+  }
+}
+
+function mapReusableFragment(raw: unknown, fallbackFragmentId: number): ReusableFragment {
+  const item = (raw ?? {}) as Record<string, unknown>
+  return {
+    id: Number(item.id ?? fallbackFragmentId),
+    name: String(item.name ?? ''),
+    code: String(item.code ?? ''),
+    fragment_type: toNullableString(item.fragment_type ?? item.fragmentType),
+    description: toNullableString(item.description),
+    status: toBoolean(item.status),
+    remark: toNullableString(item.remark),
+    created_at: String(item.created_at ?? item.createdAt ?? ''),
+    updated_at: String(item.updated_at ?? item.updatedAt ?? ''),
+  }
+}
+
+function extractEnvelopeData<T>(raw: unknown): T | undefined {
+  if (!raw || typeof raw !== 'object') {
+    return undefined
+  }
+  const envelope = raw as Record<string, unknown>
+  return (envelope.data as T | undefined) ?? (raw as T)
+}
+
+function isSuccessEnvelope(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object') {
+    return false
+  }
+  const envelope = raw as Record<string, unknown>
+  if (typeof envelope.success === 'boolean') {
+    return envelope.success
+  }
+  if (typeof envelope.code === 'string') {
+    return envelope.code.toUpperCase() === 'SUCCESS'
+  }
+  return true
+}
+
+async function fetchRealVersionNodeTree(versionId: number): Promise<PageVersionNodeTreeResponse> {
+  const rawResponse = await requestJson<unknown>(`/page-versions/${versionId}/node-tree`, {
+    method: 'GET',
+  })
+  const data = extractEnvelopeData<VersionNodeTreeData>(rawResponse)
+  const rawNodes = Array.isArray(data?.nodes) ? data.nodes : []
+  const nodes = rawNodes.map((node) => mapPageNode(node))
+  const pageVersion = mapPageVersion(data?.page_version ?? data?.pageVersion, versionId)
+
+  nodes.forEach((node) => {
+    if (node.id > 0 && node.page_version_id !== null) {
+      versionNodeOwnerCache.set(node.id, node.page_version_id)
+    }
+  })
+
+  return {
+    page_version: pageVersion,
+    nodes,
+  }
+}
+
+async function fetchRealTemplateNodeTree(templateId: number): Promise<PageTemplateNodeTreeResponse> {
+  const rawResponse = await requestJson<unknown>(`/page-templates/${templateId}/node-tree`, {
+    method: 'GET',
+  })
+  const data = extractEnvelopeData<TemplateNodeTreeData>(rawResponse)
+  const rawNodes = Array.isArray(data?.nodes) ? data.nodes : []
+  return {
+    template: mapPageTemplate(data?.template, templateId),
+    nodes: rawNodes.map((node) => mapPageNode(node)),
+  }
+}
+
+async function fetchRealFragmentNodeTree(fragmentId: number): Promise<ReusableFragmentNodeTreeResponse> {
+  const rawResponse = await requestJson<unknown>(`/reusable-fragments/${fragmentId}/node-tree`, {
+    method: 'GET',
+  })
+  const data = extractEnvelopeData<FragmentNodeTreeData>(rawResponse)
+  const rawNodes = Array.isArray(data?.nodes) ? data.nodes : []
+  return {
+    fragment: mapReusableFragment(data?.fragment, fragmentId),
+    nodes: rawNodes.map((node) => mapPageNode(node)),
+  }
+}
+
+function normalizeCopyNodeResponse(
+  raw: unknown,
+): NodeCollectionResponse<PageNode> | undefined {
+  const data = extractEnvelopeData<{ nodes?: unknown[] }>(raw)
+  const nodes = Array.isArray(data?.nodes) ? data.nodes : undefined
+
+  if (!nodes) {
+    return undefined
+  }
+
+  return { nodes: nodes.map((node) => mapPageNode(node)) }
+}
+
 export function materializeSavedNodes(
   inputNodes: SavePageNodeTreePayload['nodes'],
   owner: Pick<PageNode, 'page_version_id' | 'template_id' | 'fragment_id'>,
@@ -210,6 +430,14 @@ export function materializeSavedNodes(
 }
 
 export async function getVersionNodeTree(versionId: number): Promise<PageVersionNodeTreeResponse | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      return await fetchRealVersionNodeTree(versionId)
+    } catch (error) {
+      console.error('[getVersionNodeTree] real api failed, fallback to mock.', error)
+    }
+  }
+
   const pageVersion = pageVersions.find((item) => item.id === versionId)
   if (!pageVersion) {
     return mockResolve(undefined)
@@ -222,6 +450,14 @@ export async function getVersionNodeTree(versionId: number): Promise<PageVersion
 }
 
 export async function getTemplateNodeTreeNodes(templateId: number): Promise<PageTemplateNodeTreeResponse | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      return await fetchRealTemplateNodeTree(templateId)
+    } catch (error) {
+      console.error('[getTemplateNodeTreeNodes] real api failed, fallback to mock.', error)
+    }
+  }
+
   const template = pageTemplates.find((item) => item.id === templateId)
   if (!template) {
     return mockResolve(undefined)
@@ -236,6 +472,14 @@ export async function getTemplateNodeTreeNodes(templateId: number): Promise<Page
 export async function getFragmentNodeTreeNodes(
   fragmentId: number,
 ): Promise<ReusableFragmentNodeTreeResponse | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      return await fetchRealFragmentNodeTree(fragmentId)
+    } catch (error) {
+      console.error('[getFragmentNodeTreeNodes] real api failed, fallback to mock.', error)
+    }
+  }
+
   const fragment = reusableFragments.find((item) => item.id === fragmentId)
   if (!fragment) {
     return mockResolve(undefined)
@@ -251,6 +495,26 @@ export async function saveVersionNodeTree(
   versionId: number,
   payload: SavePageNodeTreePayload,
 ): Promise<NodeCollectionResponse<PageNode> | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      const rawResponse = await requestJson<unknown>(`/page-versions/${versionId}/node-tree`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      })
+
+      if (!isSuccessEnvelope(rawResponse)) {
+        throw new Error('Save response indicates failure.')
+      }
+
+      // Integration-phase compensation: backend currently returns success marker
+      // without nodes/idMap. Force reload to get the latest full tree snapshot.
+      const latestTree = await fetchRealVersionNodeTree(versionId)
+      return { nodes: latestTree.nodes }
+    } catch {
+      // Keep minimum mock fallback during phased integration.
+    }
+  }
+
   const pageVersion = pageVersions.find((item) => item.id === versionId)
   if (!pageVersion) {
     return mockResolve(undefined)
@@ -341,6 +605,50 @@ export async function copyPageNode(
   id: number,
   payload?: Partial<CopyPageNodeInput>,
 ): Promise<NodeCollectionResponse<PageNode> | undefined> {
+  if (shouldUseRealApi()) {
+    let fallbackVersionId = versionNodeOwnerCache.get(id) ?? null
+    let beforeNodeIds = new Set<number>()
+
+    if (fallbackVersionId !== null) {
+      const beforeTree = await fetchRealVersionNodeTree(fallbackVersionId)
+      beforeNodeIds = new Set(beforeTree.nodes.map((node) => node.id))
+    }
+
+    try {
+      const rawResponse = await requestJson<unknown>(`/page-nodes/${id}/copy`, {
+        method: 'POST',
+        body: JSON.stringify(payload ?? {}),
+      })
+
+      const normalized = normalizeCopyNodeResponse(rawResponse)
+      if (normalized) {
+        return normalized
+      }
+
+      if (!isSuccessEnvelope(rawResponse)) {
+        throw new Error('Copy response indicates failure.')
+      }
+
+      // Integration-phase fallback only: when copy success response has no nodes,
+      // force reload node-tree and derive appended subtree from diff.
+      if (fallbackVersionId === null) {
+        throw new Error('Copy success but cannot locate owner version for node-tree reload.')
+      }
+
+      const afterTree = await fetchRealVersionNodeTree(fallbackVersionId)
+      const appendedNodes = afterTree.nodes.filter((node) => !beforeNodeIds.has(node.id))
+      if (!appendedNodes.length) {
+        throw new Error('Copy success but no appended nodes found after node-tree reload.')
+      }
+
+      console.warn('[copyPageNode] integration fallback used: derive copied nodes from reloaded node-tree.')
+      return { nodes: appendedNodes }
+    } catch (error) {
+      console.error('[copyPageNode] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   const source = pageNodes.find((item) => item.id === id)
   if (!source) {
     return mockResolve(undefined)

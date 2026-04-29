@@ -12,6 +12,7 @@ import type {
   SavePageNodeTreePayload,
 } from '@/types/page-node'
 
+import { requestJson, shouldUseRealApi } from './http-client'
 import { materializeSavedNodes } from './page-node'
 import { apiDraftMeta, buildListResult, includesQueryValue, mockResolve, nextNumericId } from './mock-client'
 
@@ -28,6 +29,122 @@ export const pageTemplateApiDrafts = {
     false,
     'TODO: 整树保存时前端临时 ID 与后端真实 ID 的映射机制待确认',
   ),
+}
+
+type Envelope<T> = {
+  code?: string
+  success?: boolean
+  message?: string
+  data?: T
+}
+
+type TemplateNodeTreeData = {
+  nodes?: unknown[]
+  template?: unknown
+}
+
+function toNullableString(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null
+  }
+  return String(value)
+}
+
+function toNullableNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function toBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value
+  }
+  if (typeof value === 'number') {
+    return value !== 0
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    return normalized === 'true' || normalized === '1'
+  }
+  return false
+}
+
+function mapPageNode(raw: unknown): PageNode {
+  const item = (raw ?? {}) as Record<string, unknown>
+  return {
+    id: Number(item.id ?? 0),
+    page_version_id: toNullableNumber(item.page_version_id ?? item.pageVersionId),
+    template_id: toNullableNumber(item.template_id ?? item.templateId),
+    fragment_id: toNullableNumber(item.fragment_id ?? item.fragmentId),
+    parent_id: toNullableNumber(item.parent_id ?? item.parentId),
+    node_type: String(item.node_type ?? item.nodeType ?? 'component') as PageNode['node_type'],
+    component_key: toNullableString(item.component_key ?? item.componentKey),
+    node_name: toNullableString(item.node_name ?? item.nodeName),
+    slot_name: toNullableString(item.slot_name ?? item.slotName),
+    sort_order: toNullableNumber(item.sort_order ?? item.sortOrder),
+    depth: toNullableNumber(item.depth),
+    col_span: toNullableNumber(item.col_span ?? item.colSpan),
+    row_span: toNullableNumber(item.row_span ?? item.rowSpan),
+    data_binding_id: toNullableNumber(item.data_binding_id ?? item.dataBindingId),
+    ref_fragment_id: toNullableNumber(item.ref_fragment_id ?? item.refFragmentId),
+    props_json: toNullableString(item.props_json ?? item.propsJson),
+    style_json: toNullableString(item.style_json ?? item.styleJson),
+    layout_json: toNullableString(item.layout_json ?? item.layoutJson),
+    event_json: toNullableString(item.event_json ?? item.eventJson),
+    visible_rule_json: toNullableString(item.visible_rule_json ?? item.visibleRuleJson),
+    status: toBoolean(item.status),
+    remark: toNullableString(item.remark),
+    created_at: String(item.created_at ?? item.createdAt ?? ''),
+    updated_at: String(item.updated_at ?? item.updatedAt ?? ''),
+  }
+}
+
+function mapPageTemplate(raw: unknown, fallbackTemplateId: number): PageTemplate {
+  const item = (raw ?? {}) as Record<string, unknown>
+  return {
+    id: Number(item.id ?? fallbackTemplateId),
+    name: String(item.name ?? ''),
+    code: String(item.code ?? ''),
+    scene_type: toNullableString(item.scene_type ?? item.sceneType),
+    preview_image: toNullableString(item.preview_image ?? item.previewImage),
+    description: toNullableString(item.description),
+    status: toBoolean(item.status),
+    remark: toNullableString(item.remark),
+    created_at: String(item.created_at ?? item.createdAt ?? ''),
+    updated_at: String(item.updated_at ?? item.updatedAt ?? ''),
+  }
+}
+
+function isSuccessEnvelope(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object') {
+    return false
+  }
+  const envelope = raw as Record<string, unknown>
+  if (typeof envelope.success === 'boolean') {
+    return envelope.success
+  }
+  if (typeof envelope.code === 'string') {
+    return envelope.code.toUpperCase() === 'SUCCESS'
+  }
+  return true
+}
+
+async function fetchRealTemplateNodeTree(id: number): Promise<PageTemplateNodeTreeResponse> {
+  const rawResponse = await requestJson<Envelope<TemplateNodeTreeData>>(`/page-templates/${id}/node-tree`, {
+    method: 'GET',
+  })
+  const data = rawResponse?.data ?? {}
+  const rawNodes = Array.isArray(data.nodes) ? data.nodes : []
+  return {
+    template: mapPageTemplate(data.template, id),
+    nodes: rawNodes.map((node) => mapPageNode(node)),
+  }
 }
 
 export async function listPageTemplates(query: PageTemplateQuery = {}): Promise<ListResult<PageTemplate>> {
@@ -73,6 +190,14 @@ export async function deletePageTemplate(id: number): Promise<IdResponse | undef
 }
 
 export async function getTemplateNodeTree(id: number): Promise<PageTemplateNodeTreeResponse | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      return await fetchRealTemplateNodeTree(id)
+    } catch (error) {
+      console.error('[getTemplateNodeTree] real api failed, fallback to mock.', error)
+    }
+  }
+
   const template = pageTemplates.find((item) => item.id === id)
   if (!template) {
     return mockResolve(undefined)
@@ -87,6 +212,25 @@ export async function saveTemplateNodeTree(
   id: number,
   payload: SavePageNodeTreePayload,
 ): Promise<NodeCollectionResponse<PageNode> | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      const rawResponse = await requestJson<unknown>(`/page-templates/${id}/node-tree`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      })
+
+      if (!isSuccessEnvelope(rawResponse)) {
+        throw new Error('Save template node-tree response indicates failure.')
+      }
+
+      // Integration-phase compensation: backend may only return success marker.
+      const latestTree = await fetchRealTemplateNodeTree(id)
+      return { nodes: latestTree.nodes }
+    } catch (error) {
+      console.error('[saveTemplateNodeTree] real api failed, fallback to mock.', error)
+    }
+  }
+
   const template = pageTemplates.find((item) => item.id === id)
   if (!template) {
     return mockResolve(undefined)
