@@ -205,7 +205,7 @@ function resolveSlotLabel(slotName: string | null) {
       <div class="app-card__header-line">
         <div class="app-card__title-group">
           <div class="app-card__title">页面结构树</div>
-            <p class="app-card__description">用于查看页面结构树并快速选中节点；小空间区域可简称节点树。</p>
+          <p class="app-card__description">用于查看页面结构树并快速选中节点，支持就地调整层级与槽位。</p>
         </div>
         <span class="app-card__meta">{{ flatItems.length }} 个节点</span>
       </div>
@@ -276,7 +276,7 @@ function resolveSlotLabel(slotName: string | null) {
 
 .panel :deep(.el-card__body) {
   height: calc(100% - 78px);
-  padding: 10px 8px 8px 10px;
+  padding: 10px 10px 10px 10px;
 }
 
 .panel__body {
@@ -290,33 +290,65 @@ function resolveSlotLabel(slotName: string | null) {
   background: transparent;
 }
 
+.panel :deep(.el-tree-node) {
+  position: relative;
+}
+
+.panel :deep(.el-tree-node__children) {
+  position: relative;
+}
+
+.panel :deep(.el-tree-node__children::before) {
+  content: '';
+  position: absolute;
+  top: 2px;
+  bottom: 6px;
+  left: 7px;
+  width: 1px;
+  background: rgba(148, 163, 184, 0.24);
+}
+
 .panel :deep(.el-tree-node__content) {
   height: auto;
-  min-height: 72px;
-  padding: 6px 8px 6px 0;
-  border-radius: 14px;
+  min-height: 84px;
+  padding: 8px 10px 8px 0;
+  border-radius: 12px;
   transition:
     background-color 0.18s ease,
     box-shadow 0.18s ease,
-    border-color 0.18s ease;
+    border-color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .panel :deep(.el-tree-node__content:hover) {
-  background: rgba(59, 130, 246, 0.06);
-  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.12);
+  background: rgba(59, 130, 246, 0.1);
+  box-shadow:
+    inset 0 0 0 1px rgba(59, 130, 246, 0.2),
+    0 6px 14px rgba(37, 99, 235, 0.06);
+  transform: translateX(1px);
 }
 
 .panel :deep(.el-tree--highlight-current .el-tree-node.is-current > .el-tree-node__content) {
-  background: linear-gradient(90deg, rgba(37, 99, 235, 0.1), rgba(96, 165, 250, 0.12));
-  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.2);
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.17), rgba(96, 165, 250, 0.2));
+  box-shadow:
+    inset 0 0 0 1px rgba(37, 99, 235, 0.32),
+    0 8px 20px rgba(37, 99, 235, 0.12);
+}
+
+.panel :deep(.el-tree--highlight-current .el-tree-node.is-current > .el-tree-node__content .tree-node__title) {
+  font-weight: 700;
+}
+
+.panel :deep(.el-tree--highlight-current .el-tree-node.is-current > .el-tree-node__content .tree-node__status) {
+  transform: scale(1.03);
 }
 
 .tree-node {
   width: 100%;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -325,7 +357,7 @@ function resolveSlotLabel(slotName: string | null) {
   min-width: 0;
   flex: 1;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .tree-node__title-row {
@@ -352,12 +384,12 @@ function resolveSlotLabel(slotName: string | null) {
 }
 
 .tree-node__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 10px;
   color: var(--app-text-muted);
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.45;
   min-width: 0;
 }
 
@@ -382,12 +414,18 @@ function resolveSlotLabel(slotName: string | null) {
 }
 
 .tree-node__actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr;
   flex: 0 0 auto;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  min-width: 170px;
-  max-width: 170px;
+  align-content: start;
+  gap: 4px;
+  min-width: 154px;
+  max-width: 164px;
+}
+
+@media (max-width: 1520px) {
+  .tree-node__meta {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

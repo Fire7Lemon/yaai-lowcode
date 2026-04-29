@@ -391,8 +391,8 @@ onMounted(load)
 
 .editor-workspace__row {
   display: grid;
-  grid-template-columns: minmax(260px, 300px) minmax(620px, 1fr) minmax(280px, 330px);
-  gap: 14px;
+  grid-template-columns: minmax(360px, 460px) minmax(780px, 1fr) minmax(300px, 360px);
+  gap: 12px;
   min-height: calc(100vh - 220px);
   height: calc(100vh - 220px);
 }
@@ -418,7 +418,7 @@ onMounted(load)
 
 @media (max-width: 1440px) {
   .editor-workspace__row {
-    grid-template-columns: minmax(240px, 280px) minmax(520px, 1fr) minmax(260px, 300px);
+    grid-template-columns: minmax(320px, 380px) minmax(640px, 1fr) minmax(280px, 330px);
   }
 }
 

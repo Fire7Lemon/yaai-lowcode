@@ -15,6 +15,7 @@ import type {
 import { requestJson, shouldUseRealApi } from './http-client'
 import { materializeSavedNodes } from './page-node'
 import { apiDraftMeta, buildListResult, includesQueryValue, mockResolve, nextNumericId } from './mock-client'
+import { extractNodesFromSaveResponse, getErrorMessageFromResponse, isSuccessEnvelope } from './response-utils'
 
 export const reusableFragmentApiDrafts = {
   list: apiDraftMeta('/reusable-fragments', 'GET', true),
@@ -120,20 +121,6 @@ function mapReusableFragment(raw: unknown, fallbackFragmentId: number): Reusable
   }
 }
 
-function isSuccessEnvelope(raw: unknown): boolean {
-  if (!raw || typeof raw !== 'object') {
-    return false
-  }
-  const envelope = raw as Record<string, unknown>
-  if (typeof envelope.success === 'boolean') {
-    return envelope.success
-  }
-  if (typeof envelope.code === 'string') {
-    return envelope.code.toUpperCase() === 'SUCCESS'
-  }
-  return true
-}
-
 async function fetchRealFragmentNodeTree(id: number): Promise<ReusableFragmentNodeTreeResponse> {
   const rawResponse = await requestJson<Envelope<FragmentNodeTreeData>>(`/reusable-fragments/${id}/node-tree`, {
     method: 'GET',
@@ -225,7 +212,14 @@ export async function saveFragmentNodeTree(
       })
 
       if (!isSuccessEnvelope(rawResponse)) {
-        throw new Error('Save fragment node-tree response indicates failure.')
+        const backendMessage =
+          getErrorMessageFromResponse(rawResponse) ?? 'Save fragment node-tree response indicates failure.'
+        throw new Error(backendMessage)
+      }
+
+      const savedNodes = extractNodesFromSaveResponse(rawResponse, mapPageNode)
+      if (savedNodes) {
+        return { nodes: savedNodes }
       }
 
       // TEMP: backend compatibility for current delivery

@@ -94,7 +94,7 @@ function resolveNodeTypeLabel(nodeType: string | null) {
 .property-panel__body {
   height: 100%;
   overflow: auto;
-  padding: 10px 12px 14px;
+  padding: 10px 10px 14px;
 }
 
 .property-panel__empty {

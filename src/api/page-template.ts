@@ -15,6 +15,7 @@ import type {
 import { requestJson, shouldUseRealApi } from './http-client'
 import { materializeSavedNodes } from './page-node'
 import { apiDraftMeta, buildListResult, includesQueryValue, mockResolve, nextNumericId } from './mock-client'
+import { extractNodesFromSaveResponse, getErrorMessageFromResponse, isSuccessEnvelope } from './response-utils'
 
 export const pageTemplateApiDrafts = {
   list: apiDraftMeta('/page-templates', 'GET', true),
@@ -32,9 +33,11 @@ export const pageTemplateApiDrafts = {
 }
 
 type Envelope<T> = {
-  code?: string
+  code?: string | number
   success?: boolean
   message?: string
+  msg?: string
+  error?: string
   data?: T
 }
 
@@ -119,20 +122,6 @@ function mapPageTemplate(raw: unknown, fallbackTemplateId: number): PageTemplate
     created_at: String(item.created_at ?? item.createdAt ?? ''),
     updated_at: String(item.updated_at ?? item.updatedAt ?? ''),
   }
-}
-
-function isSuccessEnvelope(raw: unknown): boolean {
-  if (!raw || typeof raw !== 'object') {
-    return false
-  }
-  const envelope = raw as Record<string, unknown>
-  if (typeof envelope.success === 'boolean') {
-    return envelope.success
-  }
-  if (typeof envelope.code === 'string') {
-    return envelope.code.toUpperCase() === 'SUCCESS'
-  }
-  return true
 }
 
 async function fetchRealTemplateNodeTree(id: number): Promise<PageTemplateNodeTreeResponse> {
@@ -222,7 +211,14 @@ export async function saveTemplateNodeTree(
       })
 
       if (!isSuccessEnvelope(rawResponse)) {
-        throw new Error('Save template node-tree response indicates failure.')
+        const backendMessage =
+          getErrorMessageFromResponse(rawResponse) ?? 'Save template node-tree response indicates failure.'
+        throw new Error(backendMessage)
+      }
+
+      const savedNodes = extractNodesFromSaveResponse(rawResponse, mapPageNode)
+      if (savedNodes) {
+        return { nodes: savedNodes }
       }
 
       // TEMP: backend compatibility for current delivery

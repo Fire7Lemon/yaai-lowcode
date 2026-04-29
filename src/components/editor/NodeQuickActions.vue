@@ -36,7 +36,7 @@ const emit = defineEmits<{
 .quick-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   padding: 2px;
   border: 1px solid rgba(203, 213, 225, 0.85);
   border-radius: 999px;
@@ -45,8 +45,8 @@ const emit = defineEmits<{
 }
 
 .quick-actions__button {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border-radius: 999px;
 }

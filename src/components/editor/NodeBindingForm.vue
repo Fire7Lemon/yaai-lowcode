@@ -51,7 +51,7 @@ watch(
     </el-form>
     <el-alert
       v-if="node.node_type === 'fragment_ref'"
-      title="片段引用节点仍是标准 page_node，仅通过 ref_fragment_id 指向 reusable_fragment。"
+      title="片段引用节点仍是标准页面节点（page_node），仅通过 ref_fragment_id 指向可复用片段（reusable_fragment）。"
       type="warning"
       :closable="false"
     />

@@ -21,7 +21,7 @@ const emit = defineEmits<{
         <el-option v-for="item in PAGE_NODE_TYPE_OPTIONS" :key="item" :label="item" :value="item" />
       </el-select>
     </el-form-item>
-    <el-form-item label="组件 Key">
+    <el-form-item label="组件键（component_key）">
       <el-input
         :model-value="node.component_key ?? ''"
         :disabled="node.node_type === 'fragment_ref'"

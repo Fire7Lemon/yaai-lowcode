@@ -81,6 +81,7 @@ function resolveSlotLabel(slotName: string | null) {
 <template>
   <NodeOutlineBox
     :active="props.selectedNodeId === props.node.id"
+    :node-type="props.node.node_type"
     :title="props.node.node_name || '未命名节点'"
     :subtitle="`${resolveNodeTypeLabel(props.node.node_type)} / ${componentDef?.component_name ?? props.node.component_key ?? '片段引用'}`"
     @click="emit('select', props.node.id)"

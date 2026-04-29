@@ -23,7 +23,7 @@ const emit = defineEmits<{
       <div class="app-card__header-line">
         <div class="app-card__title-group">
           <div class="app-card__title">预览区</div>
-          <p class="app-card__description">中间画布优先承载页面结构测试，容器层级与组件层级应一眼可辨。</p>
+          <p class="app-card__description">主舞台用于承载页面结构预览，容器层级和组件层级应一眼可辨。</p>
         </div>
       </div>
     </template>
@@ -57,7 +57,7 @@ const emit = defineEmits<{
 .canvas__body {
   height: 100%;
   overflow: auto;
-  padding: 14px;
+  padding: 12px;
   background:
     linear-gradient(180deg, rgba(241, 245, 249, 0.85), rgba(248, 250, 252, 0.95)),
     #f8fafc;
@@ -67,10 +67,11 @@ const emit = defineEmits<{
   display: flex;
   min-height: 100%;
   flex-direction: column;
-  gap: 14px;
-  width: min(100%, 980px);
-  margin: 0 auto;
-  padding: 18px;
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 16px;
   border: 1px solid rgba(203, 213, 225, 0.8);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.92);

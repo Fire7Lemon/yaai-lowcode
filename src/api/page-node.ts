@@ -18,6 +18,7 @@ import type { ReusableFragment } from '@/types/reusable-fragment'
 
 import { requestJson, shouldUseRealApi } from './http-client'
 import { apiDraftMeta, mockResolve, nextNumericId } from './mock-client'
+import { extractNodesFromSaveResponse, getErrorMessageFromResponse, isSuccessEnvelope } from './response-utils'
 
 export const pageNodeApiDrafts = {
   versionNodeTree: apiDraftMeta('/page-versions/{versionId}/node-tree', 'GET', true),
@@ -294,20 +295,6 @@ function extractEnvelopeData<T>(raw: unknown): T | undefined {
   return (envelope.data as T | undefined) ?? (raw as T)
 }
 
-function isSuccessEnvelope(raw: unknown): boolean {
-  if (!raw || typeof raw !== 'object') {
-    return false
-  }
-  const envelope = raw as Record<string, unknown>
-  if (typeof envelope.success === 'boolean') {
-    return envelope.success
-  }
-  if (typeof envelope.code === 'string') {
-    return envelope.code.toUpperCase() === 'SUCCESS'
-  }
-  return true
-}
-
 async function fetchRealVersionNodeTree(versionId: number): Promise<PageVersionNodeTreeResponse> {
   const rawResponse = await requestJson<unknown>(`/page-versions/${versionId}/node-tree`, {
     method: 'GET',
@@ -510,7 +497,13 @@ export async function saveVersionNodeTree(
       })
 
       if (!isSuccessEnvelope(rawResponse)) {
-        throw new Error('Save response indicates failure.')
+        const backendMessage = getErrorMessageFromResponse(rawResponse) ?? 'Save response indicates failure.'
+        throw new Error(backendMessage)
+      }
+
+      const savedNodes = extractNodesFromSaveResponse(rawResponse, mapPageNode)
+      if (savedNodes) {
+        return { nodes: savedNodes }
       }
 
       // TEMP: backend compatibility for current delivery

@@ -3,9 +3,8 @@ const props = defineProps<{
   active?: boolean
   title: string
   subtitle?: string
+  nodeType?: string | null
 }>()
-
-const kind = props.subtitle?.split(' / ')[0] ?? ''
 </script>
 
 <template>
@@ -13,9 +12,9 @@ const kind = props.subtitle?.split(' / ')[0] ?? ''
     class="outline"
     :class="{
       'outline--active': active,
-      'outline--container': kind === 'container',
-      'outline--component': kind === 'component',
-      'outline--fragment': kind === 'fragment_ref',
+      'outline--container': props.nodeType === 'container',
+      'outline--component': props.nodeType === 'component',
+      'outline--fragment': props.nodeType === 'fragment_ref',
     }"
   >
     <div class="outline__header">

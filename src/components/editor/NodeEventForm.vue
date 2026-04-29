@@ -14,7 +14,7 @@ const emit = defineEmits<{
 <template>
   <JsonCodeEditor
     :model-value="node.event_json ?? ''"
-    placeholder="请输入 event_json"
+    placeholder="请输入事件配置 JSON（event_json）"
     @update:model-value="emit('patch', { event_json: $event || null })"
   />
 </template>

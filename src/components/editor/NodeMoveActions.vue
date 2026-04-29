@@ -97,7 +97,7 @@ function resolveSlotLabel(slotName: string) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 4px;
 }
 
@@ -122,7 +122,7 @@ function resolveSlotLabel(slotName: string) {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 6px;
+  padding: 2px 5px;
   border: 1px solid rgba(203, 213, 225, 0.9);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
@@ -135,11 +135,11 @@ function resolveSlotLabel(slotName: string) {
 }
 
 .node-move-actions__select {
-  width: 92px;
+  width: 84px;
 }
 
 .node-move-actions__select--slot {
-  width: 72px;
+  width: 74px;
 }
 
 .node-move-actions__field :deep(.el-select__wrapper) {

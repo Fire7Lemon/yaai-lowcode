@@ -1,6 +1,11 @@
 function joinUrl(base: string, path: string): string {
   const normalizedBase = base.endsWith('/') ? base.slice(0, -1) : base
   const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  if (normalizedBase && normalizedBase.startsWith('/')) {
+    if (normalizedPath === normalizedBase || normalizedPath.startsWith(`${normalizedBase}/`)) {
+      return normalizedPath
+    }
+  }
   return `${normalizedBase}${normalizedPath}`
 }
 
