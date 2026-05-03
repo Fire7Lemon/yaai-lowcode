@@ -30,6 +30,55 @@ const binding = computed(() =>
   props.dataBindings.find((item) => item.id === props.node.data_binding_id),
 )
 const parsedProps = computed(() => safeParseJson(props.node.props_json))
+const parsedLayout = computed(() => safeParseJson(props.node.layout_json))
+
+function extractColumnsFromObject(value: unknown): number | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const raw = (value as Record<string, unknown>).columns
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 1) {
+    return Math.min(12, Math.floor(raw))
+  }
+  if (typeof raw === 'string') {
+    const n = Number(raw.trim())
+    if (Number.isFinite(n) && n > 1) {
+      return Math.min(12, Math.floor(n))
+    }
+  }
+  return null
+}
+
+const childrenSlotLeftRight = computed(() => {
+  const children = props.node.children
+  if (!children?.length) {
+    return false
+  }
+  const names = new Set(children.map((c) => (c.slot_name ?? '').trim().toLowerCase()))
+  return names.has('left') && names.has('right')
+})
+
+const childrenGridColumnsFromJson = computed(() => {
+  if (childrenSlotLeftRight.value) {
+    return null
+  }
+  return extractColumnsFromObject(parsedLayout.value) ?? extractColumnsFromObject(parsedProps.value)
+})
+
+const childrenLayoutModifierClass = computed(() =>
+  childrenSlotLeftRight.value ? 'node-renderer__children--two-columns' : '',
+)
+
+const childrenGridStyle = computed(() => {
+  const n = childrenGridColumnsFromJson.value
+  if (!n) {
+    return {}
+  }
+  return {
+    gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))`,
+  }
+})
+
 const propSummary = computed(() => {
   if (!parsedProps.value || typeof parsedProps.value !== 'object' || Array.isArray(parsedProps.value)) {
     return []
@@ -99,7 +148,12 @@ function resolveSlotLabel(slotName: string | null) {
         </div>
       </div>
     </div>
-    <div v-if="props.node.children?.length" class="node-renderer__children">
+    <div
+      v-if="props.node.children?.length"
+      class="node-renderer__children"
+      :class="childrenLayoutModifierClass"
+      :style="childrenGridStyle"
+    >
       <NodeRenderer
         v-for="child in props.node.children"
         :key="child.id"
@@ -167,10 +221,24 @@ function resolveSlotLabel(slotName: string | null) {
 }
 
 .node-renderer__children {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 12px;
   margin-top: 12px;
   padding-left: 16px;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.node-renderer__children--two-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 1200px) {
+  .node-renderer__children--two-columns {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

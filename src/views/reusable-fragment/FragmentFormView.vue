@@ -32,31 +32,54 @@ async function load() {
   if (!isEdit.value) {
     return
   }
-  const detail = await getReusableFragment(id.value)
-  if (!detail) {
-    return
+  try {
+    const detail = await getReusableFragment(id.value)
+    if (!detail) {
+      ElMessage.warning('未找到片段')
+      return
+    }
+    Object.assign(form, {
+      name: detail.name,
+      code: detail.code,
+      fragment_type: detail.fragment_type ?? 'footer_section',
+      description: detail.description ?? '',
+      status: detail.status,
+      remark: detail.remark ?? '',
+    })
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '片段加载失败')
   }
-  Object.assign(form, {
-    ...detail,
-    description: detail.description ?? '',
-    remark: detail.remark ?? '',
-  })
 }
 
 async function submit() {
   const payload = {
-    ...form,
-    fragment_type: form.fragment_type || null,
-    description: form.description || null,
-    remark: form.remark || null,
+    name: form.name.trim(),
+    code: form.code.trim(),
+    fragment_type: form.fragment_type ? form.fragment_type : null,
+    description: form.description.trim() ? form.description.trim() : null,
+    status: form.status,
+    remark: form.remark.trim() ? form.remark.trim() : null,
   }
-  if (isEdit.value) {
-    await updateReusableFragment(id.value, payload)
-  } else {
-    await createReusableFragment(payload)
+  if (!payload.name) {
+    ElMessage.warning('请填写片段名称')
+    return
   }
-  ElMessage.success('片段信息已保存')
-  router.push('/reusable-fragments')
+  if (!payload.code) {
+    ElMessage.warning('请填写片段编码')
+    return
+  }
+
+  try {
+    if (isEdit.value) {
+      await updateReusableFragment(id.value, payload)
+    } else {
+      await createReusableFragment(payload)
+    }
+    ElMessage.success('片段信息已保存')
+    router.push('/reusable-fragments')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '保存失败')
+  }
 }
 
 onMounted(load)

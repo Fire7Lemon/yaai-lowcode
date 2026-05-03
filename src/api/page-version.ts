@@ -12,6 +12,7 @@ import type {
 import { requestJson, shouldUseRealApi } from './http-client'
 import { getTemplateNodeTree } from './page-template'
 import { apiDraftMeta, buildListResult, includesQueryValue, mockResolve, nextNumericId } from './mock-client'
+import { getErrorMessageFromResponse } from './response-utils'
 
 export const pageVersionApiDrafts = {
   list: apiDraftMeta('/pages/{pageId}/versions', 'GET', true),
@@ -167,6 +168,121 @@ function mapPageVersion(raw: unknown): PageVersion {
   }
 }
 
+function throwIfEnvelopeFailed(raw: unknown, fallbackMessage: string): void {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return
+  }
+  const envelope = raw as Record<string, unknown>
+  if (envelope.success === false) {
+    throw new Error(getErrorMessageFromResponse(raw) ?? fallbackMessage)
+  }
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function pickVersionRowsAndTotal(container: Record<string, unknown>): { rows: unknown[]; total: number } | null {
+  if (Array.isArray(container.records)) {
+    const rows = container.records
+    return { rows, total: Number(container.total ?? rows.length) }
+  }
+  if (Array.isArray(container.items)) {
+    const rows = container.items
+    return { rows, total: Number(container.total ?? rows.length) }
+  }
+  return null
+}
+
+function extractPageVersionListPayload(raw: unknown): ListResult<PageVersion> {
+  throwIfEnvelopeFailed(raw, 'listPageVersions request failed')
+
+  if (Array.isArray(raw)) {
+    return {
+      items: raw.map((row) => mapPageVersion(row)),
+      total: raw.length,
+    }
+  }
+
+  if (!raw || typeof raw !== 'object') {
+    return { items: [], total: 0 }
+  }
+
+  const root = raw as Record<string, unknown>
+  let picked = pickVersionRowsAndTotal(root)
+  let page: number | undefined
+  let page_size: number | undefined
+
+  if (picked) {
+    page = toNumber(root.page ?? root.current) ?? undefined
+    page_size = toNumber(root.page_size ?? root.size) ?? undefined
+  } else {
+    const data = root.data
+    if (data && typeof data === 'object' && !Array.isArray(data) && data !== null) {
+      const dataObj = data as Record<string, unknown>
+      picked = pickVersionRowsAndTotal(dataObj)
+      if (picked) {
+        page = toNumber(dataObj.page ?? dataObj.current) ?? undefined
+        page_size = toNumber(dataObj.page_size ?? dataObj.size) ?? undefined
+      }
+    }
+  }
+
+  if (!picked) {
+    return { items: [], total: 0 }
+  }
+
+  return {
+    items: picked.rows.map((row) => mapPageVersion(row)),
+    total: picked.total,
+    page,
+    page_size,
+  }
+}
+
+function extractPageVersionDetailPayload(raw: unknown): Record<string, unknown> {
+  if (raw === null || raw === undefined) {
+    throw new Error('pageVersion response is empty')
+  }
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('invalid pageVersion response shape')
+  }
+  const obj = raw as Record<string, unknown>
+  if (obj.success === false) {
+    throw new Error(getErrorMessageFromResponse(raw) ?? 'pageVersion request failed')
+  }
+  const data = obj.data
+  if (data !== undefined && typeof data === 'object' && data !== null && !Array.isArray(data)) {
+    const record = data as Record<string, unknown>
+    if ('id' in record) {
+      return record
+    }
+  }
+  if ('id' in obj) {
+    return obj
+  }
+  throw new Error('pageVersion response missing detail payload')
+}
+
+function buildPageVersionQueryParams(query: PageVersionQuery): string {
+  const search = new URLSearchParams()
+  Object.entries(query).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') {
+      return
+    }
+    search.set(key, String(value))
+  })
+  const text = search.toString()
+  return text ? `?${text}` : ''
+}
+
 function isNetworkUnreachableError(error: unknown): boolean {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
   return (
@@ -180,6 +296,18 @@ function isNetworkUnreachableError(error: unknown): boolean {
 }
 
 export async function listPageVersions(pageId: number, query: PageVersionQuery = {}): Promise<ListResult<PageVersion>> {
+  if (shouldUseRealApi()) {
+    try {
+      const raw = await requestJson<unknown>(`/pages/${pageId}/versions${buildPageVersionQueryParams(query)}`, {
+        method: 'GET',
+      })
+      return extractPageVersionListPayload(raw)
+    } catch (error) {
+      console.error('[listPageVersions] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   const items = pageVersions
     .filter((item) => item.page_id === pageId)
     .filter((item) => includesQueryValue(item, query))
@@ -187,6 +315,21 @@ export async function listPageVersions(pageId: number, query: PageVersionQuery =
 }
 
 export async function getPageVersion(id: number): Promise<PageVersion | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      const raw = await requestJson<unknown>(`/page-versions/${id}`, {
+        method: 'GET',
+      })
+      throwIfEnvelopeFailed(raw, 'getPageVersion request failed')
+
+      const payload = extractPageVersionDetailPayload(raw)
+      return mapPageVersion(payload)
+    } catch (error) {
+      console.error('[getPageVersion] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   return mockResolve(pageVersions.find((item) => item.id === id))
 }
 

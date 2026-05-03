@@ -31,6 +31,10 @@ const props = defineProps<{
 
 <style scoped>
 .outline {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  box-sizing: border-box;
   overflow: hidden;
   border: 1px solid rgba(203, 213, 225, 0.9);
   border-radius: 16px;
@@ -85,6 +89,9 @@ const props = defineProps<{
 }
 
 .outline__body {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 14px 16px 16px;
 }
 </style>

@@ -6,6 +6,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { createDataBinding, getDataBinding, updateDataBinding } from '@/api/data-binding'
 import JsonCodeEditor from '@/components/common/JsonCodeEditor.vue'
 import { DATA_BINDING_TYPE_OPTIONS } from '@/constants/binding'
+import type { DataBindingCreateInput } from '@/types/data-binding'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,44 +35,93 @@ const bindingTypeLabelMap: Record<string, string> = {
   api: '接口数据',
 }
 
+/** 非空则校验 JSON.parse；空串映射为 null；保持 string | null 语义。 */
+function validateJsonStringOrNull(label: string, raw: string): string | null {
+  const t = raw.trim()
+  if (!t) {
+    return null
+  }
+  try {
+    JSON.parse(t)
+    return t
+  } catch {
+    throw new Error(`${label}须为合法 JSON 字符串`)
+  }
+}
+
 async function load() {
   if (!isEdit.value) {
     return
   }
-  const detail = await getDataBinding(id.value)
-  if (!detail) {
-    return
+  try {
+    const detail = await getDataBinding(id.value)
+    if (!detail) {
+      ElMessage.warning('未找到数据绑定')
+      return
+    }
+    Object.assign(form, {
+      name: detail.name,
+      binding_type: detail.binding_type,
+      source_key: detail.source_key,
+      query_json: detail.query_json ?? '',
+      field_map_json: detail.field_map_json ?? '',
+      transform_json: detail.transform_json ?? '',
+      empty_state_json: detail.empty_state_json ?? '',
+      error_state_json: detail.error_state_json ?? '',
+      cache_policy: detail.cache_policy ?? '',
+      status: detail.status,
+      remark: detail.remark ?? '',
+    })
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '数据绑定加载失败')
   }
-  Object.assign(form, {
-    ...detail,
-    query_json: detail.query_json ?? '',
-    field_map_json: detail.field_map_json ?? '',
-    transform_json: detail.transform_json ?? '',
-    empty_state_json: detail.empty_state_json ?? '',
-    error_state_json: detail.error_state_json ?? '',
-    cache_policy: detail.cache_policy ?? '',
-    remark: detail.remark ?? '',
-  })
+}
+
+function buildPayloadFromForm(): DataBindingCreateInput {
+  return {
+    name: form.name.trim(),
+    binding_type: form.binding_type.trim(),
+    source_key: form.source_key.trim(),
+    query_json: validateJsonStringOrNull('查询配置 JSON（query_json）', form.query_json),
+    field_map_json: validateJsonStringOrNull('映射配置 JSON（field_map_json）', form.field_map_json),
+    transform_json: validateJsonStringOrNull('转换配置 JSON（transform_json）', form.transform_json),
+    empty_state_json: validateJsonStringOrNull('空状态 JSON（empty_state_json）', form.empty_state_json),
+    error_state_json: validateJsonStringOrNull('错误状态 JSON（error_state_json）', form.error_state_json),
+    cache_policy: form.cache_policy.trim() ? form.cache_policy.trim() : null,
+    status: form.status,
+    remark: form.remark.trim() ? form.remark.trim() : null,
+  }
 }
 
 async function submit() {
-  const payload = {
-    ...form,
-    query_json: form.query_json || null,
-    field_map_json: form.field_map_json || null,
-    transform_json: form.transform_json || null,
-    empty_state_json: form.empty_state_json || null,
-    error_state_json: form.error_state_json || null,
-    cache_policy: form.cache_policy || null,
-    remark: form.remark || null,
+  if (!form.name.trim()) {
+    ElMessage.warning('请填写绑定名称')
+    return
   }
-  if (isEdit.value) {
-    await updateDataBinding(id.value, payload)
-  } else {
-    await createDataBinding(payload)
+  if (!form.source_key.trim()) {
+    ElMessage.warning('请填写数据源标识 (source_key)')
+    return
   }
-  ElMessage.success('数据绑定已保存')
-  router.push('/data-bindings')
+
+  let payload: DataBindingCreateInput
+  try {
+    payload = buildPayloadFromForm()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '表单校验失败')
+    return
+  }
+
+  try {
+    if (isEdit.value) {
+      await updateDataBinding(id.value, payload)
+    } else {
+      await createDataBinding(payload)
+    }
+    ElMessage.success('数据绑定已保存')
+    router.push('/data-bindings')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '保存失败')
+  }
 }
 
 onMounted(load)
@@ -108,7 +158,7 @@ onMounted(load)
               <div class="app-form-grid">
                 <el-form-item label="绑定名称"><el-input v-model="form.name" placeholder="例如：首页新闻列表绑定" /></el-form-item>
                 <el-form-item label="绑定类型">
-                  <el-select v-model="form.binding_type">
+                  <el-select v-model="form.binding_type" filterable allow-create default-first-option>
                     <el-option
                       v-for="item in DATA_BINDING_TYPE_OPTIONS"
                       :key="item"

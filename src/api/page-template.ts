@@ -13,7 +13,7 @@ import type {
 } from '@/types/page-node'
 
 import { requestJson, shouldUseRealApi } from './http-client'
-import { materializeSavedNodes } from './page-node'
+import { materializeSavedNodes, buildSaveNodeTreeRequestBodyForBackend } from './page-node'
 import { apiDraftMeta, buildListResult, includesQueryValue, mockResolve, nextNumericId } from './mock-client'
 import { extractNodesFromSaveResponse, getErrorMessageFromResponse, isSuccessEnvelope } from './response-utils'
 
@@ -124,10 +124,166 @@ function mapPageTemplate(raw: unknown, fallbackTemplateId: number): PageTemplate
   }
 }
 
+function throwIfEnvelopeFailed(raw: unknown, fallbackMessage: string): void {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return
+  }
+  const envelope = raw as Record<string, unknown>
+  if (envelope.success === false) {
+    throw new Error(getErrorMessageFromResponse(raw) ?? fallbackMessage)
+  }
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function extractPageTemplateDetailPayload(raw: unknown): Record<string, unknown> {
+  if (raw === null || raw === undefined) {
+    throw new Error('pageTemplate response is empty')
+  }
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('invalid pageTemplate response shape')
+  }
+  const obj = raw as Record<string, unknown>
+  if (obj.success === false) {
+    throw new Error(getErrorMessageFromResponse(raw) ?? 'pageTemplate request failed')
+  }
+  const data = obj.data
+  if (data !== undefined && typeof data === 'object' && data !== null && !Array.isArray(data)) {
+    const record = data as Record<string, unknown>
+    if ('id' in record) {
+      return record
+    }
+  }
+  if ('id' in obj) {
+    return obj
+  }
+  throw new Error('pageTemplate response missing detail payload')
+}
+
+function pickTemplateRowsAndTotal(container: Record<string, unknown>): { rows: unknown[]; total: number } | null {
+  if (Array.isArray(container.records)) {
+    const rows = container.records
+    return { rows, total: Number(container.total ?? rows.length) }
+  }
+  if (Array.isArray(container.items)) {
+    const rows = container.items
+    return { rows, total: Number(container.total ?? rows.length) }
+  }
+  return null
+}
+
+function extractPageTemplateListPayload(raw: unknown): ListResult<PageTemplate> {
+  throwIfEnvelopeFailed(raw, 'listPageTemplates request failed')
+
+  if (Array.isArray(raw)) {
+    return {
+      items: raw.map((row) => mapPageTemplate(row, Number((row as Record<string, unknown>).id ?? 0))),
+      total: raw.length,
+    }
+  }
+
+  if (!raw || typeof raw !== 'object') {
+    return { items: [], total: 0 }
+  }
+
+  const root = raw as Record<string, unknown>
+  let picked = pickTemplateRowsAndTotal(root)
+  let page: number | undefined
+  let page_size: number | undefined
+
+  if (picked) {
+    page = toNumber(root.page ?? root.current) ?? undefined
+    page_size = toNumber(root.page_size ?? root.size) ?? undefined
+  } else {
+    const data = root.data
+    if (data && typeof data === 'object' && !Array.isArray(data) && data !== null) {
+      const dataObj = data as Record<string, unknown>
+      picked = pickTemplateRowsAndTotal(dataObj)
+      if (picked) {
+        page = toNumber(dataObj.page ?? dataObj.current) ?? undefined
+        page_size = toNumber(dataObj.page_size ?? dataObj.size) ?? undefined
+      }
+    }
+  }
+
+  if (!picked) {
+    return { items: [], total: 0 }
+  }
+
+  return {
+    items: picked.rows.map((row) => mapPageTemplate(row, Number((row as Record<string, unknown>).id ?? 0))),
+    total: picked.total,
+    page,
+    page_size,
+  }
+}
+
+/**
+ * 前端 PageTemplateCreateInput / UpdateInput / 接口文档语义字段为 snake_case；
+ * 当前后端 page-template 写入实测需要 camelCase；
+ * 后续以后端与文档统一为准；此处仅在 API 适配层转换。
+ */
+function buildPageTemplateWriteRequestBodyForBackend(
+  payload: PageTemplateCreateInput | PageTemplateUpdateInput,
+): Record<string, unknown> {
+  return {
+    name: payload.name,
+    code: payload.code,
+    sceneType: payload.scene_type,
+    previewImage: payload.preview_image,
+    description: payload.description,
+    status: payload.status,
+    remark: payload.remark,
+  }
+}
+
+function buildPageTemplateQueryParams(query: PageTemplateQuery): string {
+  const search = new URLSearchParams()
+  Object.entries(query).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') {
+      return
+    }
+    search.set(key, String(value))
+  })
+  const text = search.toString()
+  return text ? `?${text}` : ''
+}
+
+function resolveDeletePageTemplateResponseId(raw: unknown, requestedId: number): IdResponse {
+  if (raw !== undefined && raw !== null && typeof raw === 'object' && !Array.isArray(raw)) {
+    const obj = raw as Record<string, unknown>
+    const dataVal = obj.data
+    if (typeof dataVal === 'number' && Number.isFinite(dataVal)) {
+      return { id: dataVal }
+    }
+    if (dataVal !== undefined && dataVal !== null && typeof dataVal === 'object' && !Array.isArray(dataVal)) {
+      const nestedId = (dataVal as Record<string, unknown>).id
+      if (typeof nestedId === 'number' && Number.isFinite(nestedId)) {
+        return { id: nestedId }
+      }
+    }
+    const topId = obj.id
+    if (typeof topId === 'number' && Number.isFinite(topId)) {
+      return { id: topId }
+    }
+  }
+  return { id: requestedId }
+}
+
 async function fetchRealTemplateNodeTree(id: number): Promise<PageTemplateNodeTreeResponse> {
   const rawResponse = await requestJson<Envelope<TemplateNodeTreeData>>(`/page-templates/${id}/node-tree`, {
     method: 'GET',
   })
+  throwIfEnvelopeFailed(rawResponse, 'getTemplateNodeTree request failed')
   const data = rawResponse?.data ?? {}
   const rawNodes = Array.isArray(data.nodes) ? data.nodes : []
   return {
@@ -137,14 +293,57 @@ async function fetchRealTemplateNodeTree(id: number): Promise<PageTemplateNodeTr
 }
 
 export async function listPageTemplates(query: PageTemplateQuery = {}): Promise<ListResult<PageTemplate>> {
+  if (shouldUseRealApi()) {
+    try {
+      const raw = await requestJson<unknown>(`/page-templates${buildPageTemplateQueryParams(query)}`, {
+        method: 'GET',
+      })
+      return extractPageTemplateListPayload(raw)
+    } catch (error) {
+      console.error('[listPageTemplates] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   return mockResolve(buildListResult(pageTemplates.filter((item) => includesQueryValue(item, query))))
 }
 
 export async function getPageTemplate(id: number): Promise<PageTemplate | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      const raw = await requestJson<unknown>(`/page-templates/${id}`, {
+        method: 'GET',
+      })
+      throwIfEnvelopeFailed(raw, 'getPageTemplate request failed')
+
+      const payload = extractPageTemplateDetailPayload(raw)
+      return mapPageTemplate(payload, id)
+    } catch (error) {
+      console.error('[getPageTemplate] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   return mockResolve(pageTemplates.find((item) => item.id === id))
 }
 
 export async function createPageTemplate(payload: PageTemplateCreateInput): Promise<PageTemplate> {
+  if (shouldUseRealApi()) {
+    try {
+      const raw = await requestJson<unknown>('/page-templates', {
+        method: 'POST',
+        body: JSON.stringify(buildPageTemplateWriteRequestBodyForBackend(payload)),
+      })
+      throwIfEnvelopeFailed(raw, 'createPageTemplate request failed')
+
+      const detailPayload = extractPageTemplateDetailPayload(raw)
+      return mapPageTemplate(detailPayload, Number(detailPayload.id ?? 0))
+    } catch (error) {
+      console.error('[createPageTemplate] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   const item: PageTemplate = {
     ...payload,
     id: nextNumericId(pageTemplates),
@@ -156,6 +355,22 @@ export async function createPageTemplate(payload: PageTemplateCreateInput): Prom
 }
 
 export async function updatePageTemplate(id: number, payload: PageTemplateUpdateInput): Promise<PageTemplate | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      const raw = await requestJson<unknown>(`/page-templates/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(buildPageTemplateWriteRequestBodyForBackend(payload)),
+      })
+      throwIfEnvelopeFailed(raw, 'updatePageTemplate request failed')
+
+      const detailPayload = extractPageTemplateDetailPayload(raw)
+      return mapPageTemplate(detailPayload, id)
+    } catch (error) {
+      console.error('[updatePageTemplate] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   const index = pageTemplates.findIndex((item) => item.id === id)
   if (index === -1) {
     return mockResolve(undefined)
@@ -170,6 +385,21 @@ export async function updatePageTemplate(id: number, payload: PageTemplateUpdate
 }
 
 export async function deletePageTemplate(id: number): Promise<IdResponse | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      const raw = await requestJson<unknown>(`/page-templates/${id}`, {
+        method: 'DELETE',
+      })
+      if (raw !== undefined && raw !== null && typeof raw === 'object' && !Array.isArray(raw)) {
+        throwIfEnvelopeFailed(raw, 'deletePageTemplate request failed')
+      }
+      return resolveDeletePageTemplateResponseId(raw, id)
+    } catch (error) {
+      console.error('[deletePageTemplate] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   const index = pageTemplates.findIndex((item) => item.id === id)
   if (index === -1) {
     return mockResolve(undefined)
@@ -207,7 +437,7 @@ export async function saveTemplateNodeTree(
     try {
       const rawResponse = await requestJson<unknown>(`/page-templates/${id}/node-tree`, {
         method: 'PUT',
-        body: JSON.stringify(payload),
+        body: JSON.stringify(buildSaveNodeTreeRequestBodyForBackend(payload)),
       })
 
       if (!isSuccessEnvelope(rawResponse)) {

@@ -47,16 +47,27 @@ const emit = defineEmits<{
 <style scoped>
 .canvas {
   height: 100%;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .canvas :deep(.el-card__body) {
   height: calc(100% - 78px);
+  width: 100%;
+  min-width: 0;
   padding: 0;
+  box-sizing: border-box;
 }
 
 .canvas__body {
   height: 100%;
+  width: 100%;
+  min-width: 0;
   overflow: auto;
+  box-sizing: border-box;
   padding: 12px;
   background:
     linear-gradient(180deg, rgba(241, 245, 249, 0.85), rgba(248, 250, 252, 0.95)),
@@ -67,14 +78,17 @@ const emit = defineEmits<{
   display: flex;
   min-height: 100%;
   flex-direction: column;
+  align-items: stretch;
   gap: 12px;
   width: 100%;
-  max-width: 100%;
+  min-width: 0;
+  max-width: none;
   margin: 0;
   padding: 16px;
   border: 1px solid rgba(203, 213, 225, 0.8);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.92);
+  box-sizing: border-box;
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.45),
     0 14px 28px rgba(15, 23, 42, 0.05);

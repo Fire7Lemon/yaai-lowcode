@@ -5,6 +5,7 @@ import type { PageVersion } from '@/types/page-version'
 
 import { requestJson, shouldUseRealApi } from './http-client'
 import { apiDraftMeta, buildListResult, includesQueryValue, mockResolve, nextNumericId } from './mock-client'
+import { getErrorMessageFromResponse } from './response-utils'
 
 export const pageApiDrafts = {
   list: apiDraftMeta('/pages', 'GET', false, 'TODO: 分页参数与排序字段待后端确认'),
@@ -84,6 +85,23 @@ function mapPageRecord(raw: unknown): Page {
   }
 }
 
+function extractPageDetailPayload(raw: unknown): unknown {
+  if (raw === null || raw === undefined) {
+    return undefined
+  }
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined
+  }
+  const obj = raw as Record<string, unknown>
+  if (obj.data !== undefined && typeof obj.data === 'object' && !Array.isArray(obj.data) && obj.data !== null) {
+    return obj.data
+  }
+  if ('id' in obj) {
+    return raw
+  }
+  return undefined
+}
+
 function buildQueryParams(query: PageQuery): string {
   const search = new URLSearchParams()
   Object.entries(query).forEach(([key, value]) => {
@@ -122,10 +140,80 @@ export async function listPages(query: PageQuery = {}): Promise<ListResult<Page>
 }
 
 export async function getPage(id: number): Promise<Page | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      const raw = await requestJson<unknown>(`/pages/${id}`, {
+        method: 'GET',
+      })
+
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        const envelope = raw as Record<string, unknown>
+        if (envelope.success === false) {
+          throw new Error(getErrorMessageFromResponse(raw) ?? 'getPage request failed')
+        }
+      }
+
+      const payload = extractPageDetailPayload(raw)
+      if (payload === undefined || payload === null) {
+        return undefined
+      }
+
+      return mapPageRecord(payload)
+    } catch (error) {
+      console.error('[getPage] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   return mockResolve(pages.find((item) => item.id === id))
 }
 
+/**
+ * 页面写入（POST/PUT）请求体：v2.0 文档为 snake_case，当前后端实现要求 camelCase。
+ * 后续以后端与文档统一为准；此处仅在 API 适配层转换，前端 PageCreateInput / PageUpdateInput 仍为 snake_case 语义字段。
+ */
+function buildPageWriteRequestBodyForBackend(payload: PageCreateInput | PageUpdateInput): Record<string, unknown> {
+  return {
+    name: payload.name,
+    code: payload.code,
+    path: payload.path,
+    pageType: payload.page_type,
+    title: payload.title,
+    status: payload.status,
+    seoTitle: payload.seo_title,
+    seoKeywords: payload.seo_keywords,
+    seoDescription: payload.seo_description,
+    remark: payload.remark,
+  }
+}
+
 export async function createPage(payload: PageCreateInput): Promise<Page> {
+  if (shouldUseRealApi()) {
+    try {
+      const raw = await requestJson<unknown>('/pages', {
+        method: 'POST',
+        body: JSON.stringify(buildPageWriteRequestBodyForBackend(payload)),
+      })
+
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        const envelope = raw as Record<string, unknown>
+        if (envelope.success === false) {
+          throw new Error(getErrorMessageFromResponse(raw) ?? 'createPage request failed')
+        }
+      }
+
+      const detailPayload = extractPageDetailPayload(raw)
+      if (detailPayload === undefined || detailPayload === null) {
+        throw new Error('createPage response missing page data')
+      }
+
+      return mapPageRecord(detailPayload)
+    } catch (error) {
+      console.error('[createPage] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   const item: Page = {
     ...payload,
     id: nextNumericId(pages),
@@ -138,6 +226,32 @@ export async function createPage(payload: PageCreateInput): Promise<Page> {
 }
 
 export async function updatePage(id: number, payload: PageUpdateInput): Promise<Page | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      const raw = await requestJson<unknown>(`/pages/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(buildPageWriteRequestBodyForBackend(payload)),
+      })
+
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        const envelope = raw as Record<string, unknown>
+        if (envelope.success === false) {
+          throw new Error(getErrorMessageFromResponse(raw) ?? 'updatePage request failed')
+        }
+      }
+
+      const detailPayload = extractPageDetailPayload(raw)
+      if (detailPayload === undefined || detailPayload === null) {
+        throw new Error('updatePage response missing page data')
+      }
+
+      return mapPageRecord(detailPayload)
+    } catch (error) {
+      console.error('[updatePage] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   const index = pages.findIndex((item) => item.id === id)
   if (index === -1) {
     return mockResolve(undefined)
@@ -151,7 +265,45 @@ export async function updatePage(id: number, payload: PageUpdateInput): Promise<
   return mockResolve(pages[index])
 }
 
+function resolveDeletePageResponseId(raw: unknown, requestedId: number): { id: number } {
+  if (raw !== undefined && raw !== null && typeof raw === 'object' && !Array.isArray(raw)) {
+    const obj = raw as Record<string, unknown>
+    const topId = obj.id
+    if (typeof topId === 'number' && Number.isFinite(topId)) {
+      return { id: topId }
+    }
+    const data = obj.data
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      const nestedId = (data as Record<string, unknown>).id
+      if (typeof nestedId === 'number' && Number.isFinite(nestedId)) {
+        return { id: nestedId }
+      }
+    }
+  }
+  return { id: requestedId }
+}
+
 export async function deletePage(id: number): Promise<{ id: number } | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      const raw = await requestJson<unknown>(`/pages/${id}`, {
+        method: 'DELETE',
+      })
+
+      if (raw !== undefined && raw !== null && typeof raw === 'object' && !Array.isArray(raw)) {
+        const envelope = raw as Record<string, unknown>
+        if (envelope.success === false) {
+          throw new Error(getErrorMessageFromResponse(raw) ?? 'deletePage request failed')
+        }
+      }
+
+      return resolveDeletePageResponseId(raw, id)
+    } catch (error) {
+      console.error('[deletePage] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   const index = pages.findIndex((item) => item.id === id)
   if (index === -1) {
     return mockResolve(undefined)

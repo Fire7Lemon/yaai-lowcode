@@ -60,29 +60,80 @@ async function load() {
     page.value = await getPage(pageId.value)
     const result = await listPageVersions(pageId.value)
     versions.value = result.items
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '页面版本列表加载失败')
+    versions.value = []
   } finally {
     loading.value = false
   }
 }
 
 async function handleCreate() {
-  if (createForm.source_type === 'template' && createForm.source_id) {
-    await createPageVersionFromTemplate(pageId.value, {
-      template_id: createForm.source_id,
-      version_name: createForm.version_name || null,
-      remark: createForm.remark || null,
-    })
-  } else {
-    await createPageVersion(pageId.value, {
-      version_name: createForm.version_name || null,
-      source_type: createForm.source_type === 'template' ? 'manual' : createForm.source_type,
-      source_id: createForm.source_type === 'manual' ? null : createForm.source_id,
-      remark: createForm.remark || null,
-    })
+  try {
+    if (createForm.source_type === 'template' && createForm.source_id) {
+      await createPageVersionFromTemplate(pageId.value, {
+        template_id: createForm.source_id,
+        version_name: createForm.version_name || null,
+        remark: createForm.remark || null,
+      })
+    } else {
+      await createPageVersion(pageId.value, {
+        version_name: createForm.version_name || null,
+        source_type: createForm.source_type === 'template' ? 'manual' : createForm.source_type,
+        source_id: createForm.source_type === 'manual' ? null : createForm.source_id,
+        remark: createForm.remark || null,
+      })
+    }
+    dialogVisible.value = false
+    ElMessage.success('版本已创建')
+    await load()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '创建版本失败')
   }
-  dialogVisible.value = false
-  ElMessage.success('版本已创建')
-  await load()
+}
+
+async function handlePublish(versionId: number) {
+  try {
+    await publishPageVersion(versionId)
+    ElMessage.success('已提交发布')
+    await load()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '发布失败')
+    await load()
+  }
+}
+
+async function handleClone(versionId: number) {
+  try {
+    await clonePageVersion(versionId)
+    ElMessage.success('版本已复制')
+    await load()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '复制失败')
+    await load()
+  }
+}
+
+async function handleToggleLock(versionId: number, locked: boolean) {
+  try {
+    await setPageVersionLock(versionId, locked)
+    ElMessage.success(locked ? '已锁定' : '已解锁')
+    await load()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '锁定状态更新失败')
+    await load()
+  }
+}
+
+async function handleDelete(versionId: number) {
+  try {
+    await deletePageVersion(versionId)
+    ElMessage.success('版本已删除')
+    await load()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '删除失败')
+    await load()
+  }
 }
 
 onMounted(load)
@@ -148,12 +199,12 @@ onMounted(load)
             >
               进入编辑器
             </el-button>
-            <el-button link type="primary" @click="publishPageVersion(row.id).then(load)">发布</el-button>
-            <el-button link type="primary" @click="clonePageVersion(row.id).then(load)">复制</el-button>
-            <el-button link type="warning" @click="setPageVersionLock(row.id, !row.is_locked).then(load)">
+            <el-button link type="primary" @click="handlePublish(row.id)">发布</el-button>
+            <el-button link type="primary" @click="handleClone(row.id)">复制</el-button>
+            <el-button link type="warning" @click="handleToggleLock(row.id, !row.is_locked)">
               {{ row.is_locked ? '解锁' : '锁定' }}
             </el-button>
-            <el-popconfirm title="确认删除该版本吗？删除后不可恢复。" @confirm="deletePageVersion(row.id).then(load)">
+            <el-popconfirm title="确认删除该版本吗？删除后不可恢复。" @confirm="handleDelete(row.id)">
               <template #reference>
                 <el-button link type="danger">删除</el-button>
               </template>

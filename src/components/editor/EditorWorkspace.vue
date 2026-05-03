@@ -2,7 +2,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-import { createPageNode } from '@/api/page-node'
 import { listReusableFragments } from '@/api/reusable-fragment'
 import { useComponentDefStore } from '@/stores/component-def'
 import { useDataBindingStore } from '@/stores/data-binding'
@@ -21,6 +20,48 @@ const props = defineProps<{
   sourceType: EditorSourceType
   sourceId: number
 }>()
+
+const JSON_PATCH_KEYS: (keyof UpdatePageNodeInput)[] = [
+  'props_json',
+  'style_json',
+  'layout_json',
+  'event_json',
+  'visible_rule_json',
+]
+
+const JSON_PATCH_LABELS: Partial<Record<keyof UpdatePageNodeInput, string>> = {
+  props_json: '业务属性（props_json）',
+  style_json: '样式配置（style_json）',
+  layout_json: '布局配置（layout_json）',
+  event_json: '事件配置（event_json）',
+  visible_rule_json: '显示规则（visible_rule_json）',
+}
+
+function validatePatchJsonFields(payload: UpdatePageNodeInput): boolean {
+  for (const key of JSON_PATCH_KEYS) {
+    if (!(key in payload) || payload[key] === undefined) {
+      continue
+    }
+    const raw = payload[key]
+    if (raw === null) {
+      continue
+    }
+    if (typeof raw !== 'string') {
+      continue
+    }
+    const trimmed = raw.trim()
+    if (!trimmed) {
+      continue
+    }
+    try {
+      JSON.parse(trimmed)
+    } catch {
+      ElMessage.error(`${JSON_PATCH_LABELS[key] ?? String(key)} 不是合法 JSON`)
+      return false
+    }
+  }
+  return true
+}
 
 const componentStore = useComponentDefStore()
 const dataBindingStore = useDataBindingStore()
@@ -49,13 +90,17 @@ const dialogFragmentId = computed(() =>
 )
 
 async function load() {
-  const [fragmentResult] = await Promise.all([
-    listReusableFragments(),
-    componentStore.load(),
-    dataBindingStore.load(),
-  ])
-  fragmentItems.value = fragmentResult.items
-  await editorStore.loadEditor(props.sourceType, props.sourceId)
+  try {
+    const [fragmentResult] = await Promise.all([
+      listReusableFragments(),
+      componentStore.load(),
+      dataBindingStore.load(),
+    ])
+    fragmentItems.value = fragmentResult.items
+    await editorStore.loadEditor(props.sourceType, props.sourceId)
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '编辑器数据加载失败')
+  }
 }
 
 async function handleSelectNode(id: number) {
@@ -66,7 +111,14 @@ async function handlePatch(payload: UpdatePageNodeInput) {
   if (!editorStore.selectedNodeId) {
     return
   }
-  await editorStore.patchNode(editorStore.selectedNodeId, payload)
+  if (!validatePatchJsonFields(payload)) {
+    return
+  }
+  try {
+    await editorStore.patchNode(editorStore.selectedNodeId, payload)
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '属性更新失败')
+  }
 }
 
 function resolveInsertTarget() {
@@ -92,9 +144,14 @@ function resolveInsertTarget() {
 }
 
 async function handleMove(event: { id: number; move: MovePageNodeInput }) {
-  const result = await editorStore.moveNode(event.id, event.move)
-  if (!result) {
-    ElMessage.error('节点调整失败，请稍后重试')
+  try {
+    const result = await editorStore.moveNode(event.id, event.move)
+    if (!result) {
+      ElMessage.error('节点调整失败：服务端未返回有效位置，请刷新或稍后重试')
+      return
+    }
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '节点调整失败')
   }
 }
 
@@ -128,16 +185,7 @@ function buildBaseNode(
 }
 
 async function createNode(payload: CreatePageNodeInput) {
-  if (props.sourceType === 'page_version') {
-    const created = await createPageNode(props.sourceId, payload)
-    if (!created) {
-      return undefined
-    }
-    await editorStore.loadEditor(props.sourceType, props.sourceId, created.id)
-    return created
-  }
-
-  return editorStore.createNodeLocally(payload)
+  return editorStore.createEditorNode(payload)
 }
 
 async function handleAddComponent(componentKey?: string) {
@@ -149,12 +197,16 @@ async function handleAddComponent(componentKey?: string) {
 
   const component = componentStore.items.find((item) => item.component_key === targetKey)
   const nodeType: PageNodeType = component?.is_container ? 'container' : 'component'
-  const created = await createNode(buildBaseNode(targetKey, nodeType))
-  if (!created) {
-    ElMessage.error('组件新增失败，请稍后重试')
-    return
+  try {
+    const created = await createNode(buildBaseNode(targetKey, nodeType))
+    if (!created) {
+      ElMessage.error('组件新增失败，请稍后重试')
+      return
+    }
+    ElMessage.success('组件已添加')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '组件新增失败')
   }
-  ElMessage.success('组件已添加')
 }
 
 async function handleAddContainer() {
@@ -163,12 +215,16 @@ async function handleAddContainer() {
     return
   }
 
-  const created = await createNode(buildBaseNode(containerComponentKey.value, 'container'))
-  if (!created) {
-    ElMessage.error('容器新增失败，请稍后重试')
-    return
+  try {
+    const created = await createNode(buildBaseNode(containerComponentKey.value, 'container'))
+    if (!created) {
+      ElMessage.error('容器新增失败，请稍后重试')
+      return
+    }
+    ElMessage.success('容器已添加')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '容器新增失败')
   }
-  ElMessage.success('容器已添加')
 }
 
 function handleAddFragment() {
@@ -182,12 +238,16 @@ function handleAddFragment() {
 }
 
 async function handleCopyNode(id: number) {
-  const result = await editorStore.copyNode(id)
-  if (!result) {
-    ElMessage.error('复制失败，请稍后重试')
-    return
+  try {
+    const result = await editorStore.copyNode(id)
+    if (!result) {
+      ElMessage.error('复制失败，请稍后重试')
+      return
+    }
+    ElMessage.success('复制成功')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '复制失败')
   }
-  ElMessage.success('复制成功')
 }
 
 async function handleCopySelectedNode() {
@@ -211,12 +271,20 @@ async function handleDeleteNode(id: number) {
     return
   }
 
-  const result = await editorStore.deleteNode(id)
-  if (!result) {
-    ElMessage.error('删除失败，请稍后重试')
-    return
+  try {
+    const result = await editorStore.deleteNode(id)
+    if (!result) {
+      ElMessage.error('删除失败，请稍后重试')
+      return
+    }
+    if (props.sourceType === 'page_version') {
+      ElMessage.success('节点已从服务端删除')
+    } else {
+      ElMessage.success('已从当前编辑区删除，请记得保存整棵树')
+    }
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '删除失败')
   }
-  ElMessage.success('删除成功')
 }
 
 function handleReplaceFragmentRequest(id: number) {
@@ -232,38 +300,42 @@ async function handleFragmentDialogConfirm(fragmentId: number) {
     return
   }
 
-  if (fragmentDialogMode.value === 'create') {
-    const created = await createNode(buildBaseNode(null, 'fragment_ref', fragment.id))
-    if (!created) {
-      ElMessage.error('片段引用新增失败，请稍后重试')
+  try {
+    if (fragmentDialogMode.value === 'create') {
+      const created = await createNode(buildBaseNode(null, 'fragment_ref', fragment.id))
+      if (!created) {
+        ElMessage.error('片段引用新增失败，请稍后重试')
+        return
+      }
+
+      await editorStore.patchNode(created.id, {
+        node_name: fragment.name,
+        ref_fragment_id: fragment.id,
+        node_type: 'fragment_ref',
+        component_key: null,
+      })
+      ElMessage.success('片段引用已添加')
       return
     }
 
-    await editorStore.patchNode(created.id, {
+    if (!pendingFragmentNodeId.value) {
+      return
+    }
+
+    const updated = await editorStore.patchNode(pendingFragmentNodeId.value, {
       node_name: fragment.name,
       ref_fragment_id: fragment.id,
       node_type: 'fragment_ref',
       component_key: null,
     })
-    ElMessage.success('片段引用已添加')
-    return
+    if (!updated) {
+      ElMessage.error('片段替换失败，请稍后重试')
+      return
+    }
+    ElMessage.success('片段引用已更新')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '片段引用操作失败')
   }
-
-  if (!pendingFragmentNodeId.value) {
-    return
-  }
-
-  const updated = await editorStore.patchNode(pendingFragmentNodeId.value, {
-    node_name: fragment.name,
-    ref_fragment_id: fragment.id,
-    node_type: 'fragment_ref',
-    component_key: null,
-  })
-  if (!updated) {
-    ElMessage.error('片段替换失败，请稍后重试')
-    return
-  }
-  ElMessage.success('片段引用已更新')
 }
 
 const saveLabel = computed(() => {
@@ -291,8 +363,14 @@ async function handleSave() {
     }
 
     ElMessage.success(`${saveLabel.value}已保存，请以重载结果为准`)
-  } catch {
-    ElMessage.error(`${saveLabel.value}保存失败，请检查网络或稍后重试`)
+
+    try {
+      await editorStore.loadEditor(props.sourceType, props.sourceId, editorStore.selectedNodeId)
+    } catch (err) {
+      ElMessage.warning(err instanceof Error ? err.message : '保存成功但重新加载节点树失败，请手动刷新')
+    }
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : `${saveLabel.value}保存失败，请检查网络或稍后重试`)
   }
 }
 
@@ -391,16 +469,33 @@ onMounted(load)
 
 .editor-workspace__row {
   display: grid;
-  grid-template-columns: minmax(360px, 460px) minmax(780px, 1fr) minmax(300px, 360px);
-  gap: 12px;
+  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr) minmax(320px, 380px);
+  gap: 16px;
+  align-items: stretch;
+  width: 100%;
   min-height: calc(100vh - 220px);
   height: calc(100vh - 220px);
 }
 
 .editor-workspace__col {
   display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
+}
+
+.editor-workspace__col--center {
+  width: 100%;
+  min-width: 0;
+  flex: 1;
+  align-self: stretch;
+}
+
+.editor-workspace__col--center :deep(.canvas) {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  min-width: 0;
 }
 
 .editor-workspace__stack {
@@ -418,7 +513,7 @@ onMounted(load)
 
 @media (max-width: 1440px) {
   .editor-workspace__row {
-    grid-template-columns: minmax(320px, 380px) minmax(640px, 1fr) minmax(280px, 330px);
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr) minmax(280px, 340px);
   }
 }
 

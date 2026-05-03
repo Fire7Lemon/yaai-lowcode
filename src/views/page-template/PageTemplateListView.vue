@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 
+import { ElMessage } from 'element-plus'
+
 import { deletePageTemplate, listPageTemplates } from '@/api/page-template'
 import EntityStatusTag from '@/components/common/EntityStatusTag.vue'
 import PageSearchForm from '@/components/common/PageSearchForm.vue'
@@ -27,8 +29,22 @@ async function load() {
   try {
     const result = await listPageTemplates(query)
     items.value = result.items
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '页面模板列表加载失败')
+    items.value = []
   } finally {
     loading.value = false
+  }
+}
+
+async function confirmDelete(templateId: number) {
+  try {
+    await deletePageTemplate(templateId)
+    ElMessage.success('模板已删除')
+    await load()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '删除失败')
+    await load()
   }
 }
 
@@ -105,7 +121,7 @@ onMounted(load)
           <template #default="{ row }">
             <el-button link type="primary" @click="$router.push(`/page-templates/${row.id}/edit`)">编辑</el-button>
             <el-button link type="primary" @click="$router.push(`/page-templates/${row.id}/editor`)">编辑器</el-button>
-            <el-popconfirm title="确认删除该模板吗？删除后不可恢复。" @confirm="deletePageTemplate(row.id).then(load)">
+            <el-popconfirm title="确认删除该模板吗？删除后不可恢复。" @confirm="confirmDelete(row.id)">
               <template #reference>
                 <el-button link type="danger">删除</el-button>
               </template>

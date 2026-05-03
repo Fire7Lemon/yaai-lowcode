@@ -20,6 +20,121 @@ import { requestJson, shouldUseRealApi } from './http-client'
 import { apiDraftMeta, mockResolve, nextNumericId } from './mock-client'
 import { extractNodesFromSaveResponse, getErrorMessageFromResponse, isSuccessEnvelope } from './response-utils'
 
+const versionNodeOwnerCache = new Map<number, number>()
+
+function throwIfEnvelopeFailed(raw: unknown, fallbackMessage: string): void {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return
+  }
+  const envelope = raw as Record<string, unknown>
+  if (envelope.success === false) {
+    throw new Error(getErrorMessageFromResponse(raw) ?? fallbackMessage)
+  }
+}
+
+function registerVersionNodesInOwnerCache(nodes: PageNode[]) {
+  nodes.forEach((node) => {
+    if (node.id > 0 && node.page_version_id !== null) {
+      versionNodeOwnerCache.set(node.id, node.page_version_id)
+    }
+  })
+}
+
+function buildCreatePageNodeRequestBody(payload: CreatePageNodeInput): Record<string, unknown> {
+  return {
+    parentId: payload.parent_id,
+    nodeType: payload.node_type,
+    componentKey: payload.component_key,
+    nodeName: payload.node_name,
+    slotName: payload.slot_name,
+    sortOrder: payload.sort_order,
+    colSpan: payload.col_span,
+    rowSpan: payload.row_span,
+    dataBindingId: payload.data_binding_id,
+    refFragmentId: payload.ref_fragment_id,
+    propsJson: payload.props_json,
+    styleJson: payload.style_json,
+    layoutJson: payload.layout_json,
+    eventJson: payload.event_json,
+    visibleRuleJson: payload.visible_rule_json,
+    status: payload.status,
+    remark: payload.remark,
+  }
+}
+
+function buildUpdatePageNodeBodyCamel(payload: UpdatePageNodeInput): Record<string, unknown> {
+  const body: Record<string, unknown> = {}
+  if (payload.node_type !== undefined) {
+    body.nodeType = payload.node_type
+  }
+  if (payload.component_key !== undefined) {
+    body.componentKey = payload.component_key
+  }
+  if (payload.node_name !== undefined) {
+    body.nodeName = payload.node_name
+  }
+  if (payload.col_span !== undefined) {
+    body.colSpan = payload.col_span
+  }
+  if (payload.row_span !== undefined) {
+    body.rowSpan = payload.row_span
+  }
+  if (payload.data_binding_id !== undefined) {
+    body.dataBindingId = payload.data_binding_id
+  }
+  if (payload.ref_fragment_id !== undefined) {
+    body.refFragmentId = payload.ref_fragment_id
+  }
+  if (payload.props_json !== undefined) {
+    body.propsJson = payload.props_json
+  }
+  if (payload.style_json !== undefined) {
+    body.styleJson = payload.style_json
+  }
+  if (payload.layout_json !== undefined) {
+    body.layoutJson = payload.layout_json
+  }
+  if (payload.event_json !== undefined) {
+    body.eventJson = payload.event_json
+  }
+  if (payload.visible_rule_json !== undefined) {
+    body.visibleRuleJson = payload.visible_rule_json
+  }
+  if (payload.status !== undefined) {
+    body.status = payload.status
+  }
+  if (payload.remark !== undefined) {
+    body.remark = payload.remark
+  }
+  return body
+}
+
+function extractPageNodeFromEnvelopeResponse(raw: unknown, fallbackMessage: string): PageNode {
+  throwIfEnvelopeFailed(raw, fallbackMessage)
+  const root = raw as Record<string, unknown>
+  const data = root.data
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error(getErrorMessageFromResponse(raw) ?? fallbackMessage)
+  }
+  return mapPageNode(data)
+}
+
+function extractDeletePageNodeResponseId(raw: unknown, requestedId: number): number {
+  throwIfEnvelopeFailed(raw, 'deletePageNode request failed')
+  const root = raw as Record<string, unknown>
+  const data = root.data
+  if (typeof data === 'number' && Number.isFinite(data)) {
+    return data
+  }
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const id = (data as Record<string, unknown>).id
+    if (typeof id === 'number' && Number.isFinite(id)) {
+      return id
+    }
+  }
+  return requestedId
+}
+
 export const pageNodeApiDrafts = {
   versionNodeTree: apiDraftMeta('/page-versions/{versionId}/node-tree', 'GET', true),
   saveVersionNodeTree: apiDraftMeta(
@@ -45,8 +160,6 @@ export const pageNodeApiDrafts = {
     'TODO: 辅助动作接口可选，不作为核心依赖',
   ),
 }
-
-const versionNodeOwnerCache = new Map<number, number>()
 
 type Envelope<T> = {
   code?: string
@@ -299,16 +412,20 @@ async function fetchRealVersionNodeTree(versionId: number): Promise<PageVersionN
   const rawResponse = await requestJson<unknown>(`/page-versions/${versionId}/node-tree`, {
     method: 'GET',
   })
-  const data = extractEnvelopeData<VersionNodeTreeData>(rawResponse)
-  const rawNodes = Array.isArray(data?.nodes) ? data.nodes : []
-  const nodes = rawNodes.map((node) => mapPageNode(node))
-  const pageVersion = mapPageVersion(data?.page_version ?? data?.pageVersion, versionId)
+  throwIfEnvelopeFailed(rawResponse, 'getVersionNodeTree request failed')
 
-  nodes.forEach((node) => {
-    if (node.id > 0 && node.page_version_id !== null) {
-      versionNodeOwnerCache.set(node.id, node.page_version_id)
-    }
-  })
+  const root = rawResponse as Record<string, unknown>
+  const dataUnknown = root.data
+  const data: VersionNodeTreeData =
+    dataUnknown && typeof dataUnknown === 'object' && !Array.isArray(dataUnknown)
+      ? (dataUnknown as VersionNodeTreeData)
+      : {}
+
+  const rawNodes = Array.isArray(data.nodes) ? data.nodes : []
+  const nodes = rawNodes.map((node) => mapPageNode(node))
+  const pageVersion = mapPageVersion(data.page_version ?? data.pageVersion, versionId)
+
+  registerVersionNodesInOwnerCache(nodes)
 
   return {
     page_version: pageVersion,
@@ -485,6 +602,35 @@ export async function getFragmentNodeTreeNodes(
   })
 }
 
+/** Backend expects camelCase keys on PUT body; snake_case is ignored and breaks parent pointers (E-5 curl). */
+export function buildSaveNodeTreeRequestBodyForBackend(payload: SavePageNodeTreePayload): Record<string, unknown> {
+  return {
+    nodes: payload.nodes.map((node) => ({
+      id: node.id,
+      pageVersionId: node.page_version_id,
+      templateId: node.template_id,
+      fragmentId: node.fragment_id,
+      parentId: node.parent_id,
+      nodeType: node.node_type,
+      componentKey: node.component_key,
+      nodeName: node.node_name,
+      slotName: node.slot_name,
+      sortOrder: node.sort_order,
+      colSpan: node.col_span,
+      rowSpan: node.row_span,
+      dataBindingId: node.data_binding_id,
+      refFragmentId: node.ref_fragment_id,
+      propsJson: node.props_json,
+      styleJson: node.style_json,
+      layoutJson: node.layout_json,
+      eventJson: node.event_json,
+      visibleRuleJson: node.visible_rule_json,
+      status: node.status,
+      remark: node.remark,
+    })),
+  }
+}
+
 export async function saveVersionNodeTree(
   versionId: number,
   payload: SavePageNodeTreePayload,
@@ -493,7 +639,7 @@ export async function saveVersionNodeTree(
     try {
       const rawResponse = await requestJson<unknown>(`/page-versions/${versionId}/node-tree`, {
         method: 'PUT',
-        body: JSON.stringify(payload),
+        body: JSON.stringify(buildSaveNodeTreeRequestBodyForBackend(payload)),
       })
 
       if (!isSuccessEnvelope(rawResponse)) {
@@ -537,6 +683,19 @@ export async function saveVersionNodeTree(
 }
 
 export async function updatePageNode(id: number, payload: UpdatePageNodeInput): Promise<PageNode | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      const rawResponse = await requestJson<unknown>(`/page-nodes/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(buildUpdatePageNodeBodyCamel(payload)),
+      })
+      return extractPageNodeFromEnvelopeResponse(rawResponse, 'updatePageNode request failed')
+    } catch (error) {
+      console.error('[updatePageNode] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   const index = pageNodes.findIndex((item) => item.id === id)
   if (index === -1) {
     return mockResolve(undefined)
@@ -551,6 +710,23 @@ export async function updatePageNode(id: number, payload: UpdatePageNodeInput): 
 }
 
 export async function createPageNode(versionId: number, payload: CreatePageNodeInput): Promise<PageNode | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      const rawResponse = await requestJson<unknown>(`/page-versions/${versionId}/nodes`, {
+        method: 'POST',
+        body: JSON.stringify(buildCreatePageNodeRequestBody(payload)),
+      })
+      const node = extractPageNodeFromEnvelopeResponse(rawResponse, 'createPageNode request failed')
+      if (node.id > 0 && node.page_version_id !== null) {
+        versionNodeOwnerCache.set(node.id, node.page_version_id)
+      }
+      return node
+    } catch (error) {
+      console.error('[createPageNode] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   const pageVersion = pageVersions.find((item) => item.id === versionId)
   if (!pageVersion) {
     return mockResolve(undefined)
@@ -578,6 +754,19 @@ export async function createPageNode(versionId: number, payload: CreatePageNodeI
 }
 
 export async function deletePageNode(id: number): Promise<IdResponse | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      const rawResponse = await requestJson<unknown>(`/page-nodes/${id}`, {
+        method: 'DELETE',
+      })
+      const resolvedId = extractDeletePageNodeResponseId(rawResponse, id)
+      return { id: resolvedId }
+    } catch (error) {
+      console.error('[deletePageNode] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   const ids = collectDescendantIds(id)
   const nextNodes = pageNodes.filter((item) => !ids.has(item.id))
   if (nextNodes.length === pageNodes.length) {
@@ -589,6 +778,27 @@ export async function deletePageNode(id: number): Promise<IdResponse | undefined
 }
 
 export async function movePageNode(id: number, payload: MovePageNodeInput): Promise<PageNode | undefined> {
+  if (shouldUseRealApi()) {
+    try {
+      const rawResponse = await requestJson<unknown>(`/page-nodes/${id}/move`, {
+        method: 'POST',
+        body: JSON.stringify({
+          parentId: payload.parent_id,
+          slotName: payload.slot_name,
+          sortOrder: payload.sort_order,
+        }),
+      })
+      const node = extractPageNodeFromEnvelopeResponse(rawResponse, 'movePageNode request failed')
+      if (node.id > 0 && node.page_version_id !== null) {
+        versionNodeOwnerCache.set(node.id, node.page_version_id)
+      }
+      return node
+    } catch (error) {
+      console.error('[movePageNode] real api failed in integration mode.', error)
+      throw error
+    }
+  }
+
   const item = pageNodes.find((node) => node.id === id)
   if (!item) {
     return mockResolve(undefined)
@@ -623,6 +833,8 @@ export async function copyPageNode(
         method: 'POST',
         body: JSON.stringify(payload ?? {}),
       })
+
+      throwIfEnvelopeFailed(rawResponse, 'copyPageNode request failed')
 
       const normalized = normalizeCopyNodeResponse(rawResponse)
       if (normalized) {

@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 
 import {
   copyPageNode,
+  createPageNode,
   deletePageNode,
   getFragmentNodeTreeNodes,
   getTemplateNodeTreeNodes,
@@ -17,6 +18,33 @@ import type { ComponentDef } from '@/types/component-def'
 import type { CopyPageNodeInput, CreatePageNodeInput, MovePageNodeInput, PageNode, UpdatePageNodeInput } from '@/types/page-node'
 import { buildSavePageNodeTreePayload, validatePageNodeTree } from '@/utils/page-node-save'
 import { buildNodeTree } from '@/utils/tree'
+
+const CONTENT_UPDATE_KEYS: (keyof UpdatePageNodeInput)[] = [
+  'node_type',
+  'component_key',
+  'node_name',
+  'col_span',
+  'row_span',
+  'data_binding_id',
+  'ref_fragment_id',
+  'props_json',
+  'style_json',
+  'layout_json',
+  'event_json',
+  'visible_rule_json',
+  'status',
+  'remark',
+]
+
+function pickContentUpdatePayload(payload: UpdatePageNodeInput): UpdatePageNodeInput {
+  const out: UpdatePageNodeInput = {}
+  for (const key of CONTENT_UPDATE_KEYS) {
+    if (payload[key] !== undefined) {
+      ;(out as Record<string, unknown>)[key] = payload[key]
+    }
+  }
+  return out
+}
 
 export type EditorSourceType = 'page_version' | 'page_template' | 'reusable_fragment'
 
@@ -301,7 +329,8 @@ export const useEditorStore = defineStore('editor', () => {
       return patchNodeLocally(id, payload)
     }
 
-    const updated = await updatePageNode(id, payload)
+    const body = pickContentUpdatePayload(payload)
+    const updated = await updatePageNode(id, body)
     if (!updated) {
       return undefined
     }
@@ -317,12 +346,17 @@ export const useEditorStore = defineStore('editor', () => {
       return moveNodeLocally(id, payload)
     }
 
-    const updated = await movePageNode(id, payload)
-    if (!updated || sourceId.value === null) {
+    if (sourceId.value === null) {
       return undefined
     }
+
+    const moved = await movePageNode(id, payload)
+    if (!moved) {
+      return undefined
+    }
+
     await loadEditor(sourceType.value, sourceId.value, id)
-    return updated
+    return nodes.value.find((item) => item.id === id) ?? undefined
   }
 
   function replaceNodesFromResponse(nextNodes: PageNode[]) {
@@ -345,21 +379,32 @@ export const useEditorStore = defineStore('editor', () => {
       response.nodes.find((item) => item.parent_id === null || !copiedIds.has(item.parent_id))?.id ?? response.nodes[0]?.id
 
     await loadEditor(sourceType.value, sourceId.value, rootId)
-    return response.nodes.find((item) => item.id === rootId)
+    return nodes.value.find((item) => item.id === rootId) ?? response.nodes.find((item) => item.id === rootId)
+  }
+
+  async function createEditorNode(payload: CreatePageNodeInput) {
+    if (sourceType.value === 'page_version' && sourceId.value !== null) {
+      const created = await createPageNode(sourceId.value, payload)
+      if (!created) {
+        return undefined
+      }
+      await loadEditor(sourceType.value, sourceId.value, created.id)
+      return created
+    }
+
+    return createNodeLocally(payload)
   }
 
   async function deleteNode(id: number) {
-    if (sourceType.value !== 'page_version' || id <= 0 || sourceId.value === null) {
-      return deleteNodeLocally(id)
+    if (sourceType.value === 'page_version' && id > 0 && sourceId.value !== null) {
+      const snapshot = nodes.value.find((item) => item.id === id)
+      await deletePageNode(id)
+      const preferred = snapshot?.parent_id ?? null
+      await loadEditor(sourceType.value, sourceId.value, preferred)
+      return snapshot
     }
 
-    const result = await deletePageNode(id)
-    if (!result) {
-      return undefined
-    }
-
-    await loadEditor(sourceType.value, sourceId.value)
-    return result
+    return deleteNodeLocally(id)
   }
 
   function validateNodes(componentDefs: ComponentDef[]) {
@@ -415,6 +460,7 @@ export const useEditorStore = defineStore('editor', () => {
     patchNode,
     moveNode,
     createNodeLocally,
+    createEditorNode,
     copyNode,
     deleteNode,
     replaceNodesFromResponse,

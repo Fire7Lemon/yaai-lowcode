@@ -28,11 +28,18 @@ const emit = defineEmits<{
         @update:model-value="emit('patch', { component_key: $event || null })"
       />
     </el-form-item>
-    <el-alert
-      title="slot_name 属于结构性字段，第一版统一通过 move 接口调整，不在单节点 update 中提交。"
-      type="info"
-      :closable="false"
-    />
+    <el-form-item label="slot_name">
+      <div class="node-basic-form__slot-name-block">
+        <el-input :model-value="node.slot_name ?? ''" disabled placeholder="通过左侧树移动节点调整插槽" />
+        <el-alert
+          class="property-panel__field-alert"
+          title="slot_name 属于结构性字段，第一版统一通过 move 接口调整，不在单节点 update 中提交。"
+          type="info"
+          :closable="false"
+          show-icon
+        />
+      </div>
+    </el-form-item>
     <el-form-item label="状态">
       <el-switch :model-value="node.status" @change="emit('patch', { status: $event as boolean })" />
     </el-form-item>
@@ -46,3 +53,38 @@ const emit = defineEmits<{
     </el-form-item>
   </el-form>
 </template>
+
+<style scoped>
+.el-form {
+  width: 100%;
+}
+
+.el-form :deep(.el-form-item__content) {
+  min-width: 0;
+}
+
+.node-basic-form__slot-name-block {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.property-panel__field-alert {
+  position: static;
+  width: 100%;
+  margin-top: 8px;
+  box-sizing: border-box;
+  line-height: 1.5;
+  z-index: auto;
+}
+
+.property-panel__field-alert :deep(.el-alert__content) {
+  min-width: 0;
+}
+
+.property-panel__field-alert :deep(.el-alert__title) {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.5;
+}
+</style>

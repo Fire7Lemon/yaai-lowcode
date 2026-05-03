@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 
+import { ElMessage } from 'element-plus'
+
 import { deleteDataBinding, listDataBindings, previewDataBinding } from '@/api/data-binding'
 import EntityStatusTag from '@/components/common/EntityStatusTag.vue'
 import PageSearchForm from '@/components/common/PageSearchForm.vue'
@@ -9,7 +11,9 @@ import type { DataBinding } from '@/types/data-binding'
 
 const loading = ref(false)
 const items = ref<DataBinding[]>([])
-const previewContent = ref('[]')
+/** idle：未预览；empty：成功但无数据；data：有 JSON；error：请求失败 */
+const previewState = ref<'idle' | 'empty' | 'data' | 'error'>('idle')
+const previewContent = ref('')
 const query = reactive({
   name: '',
   binding_type: '',
@@ -29,14 +33,45 @@ async function load() {
   try {
     const result = await listDataBindings(query)
     items.value = result.items
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '数据绑定列表加载失败')
+    items.value = []
   } finally {
     loading.value = false
   }
 }
 
 async function showPreview(id: number) {
-  const data = await previewDataBinding(id)
-  previewContent.value = JSON.stringify(data?.preview_data ?? [], null, 2)
+  try {
+    const data = await previewDataBinding(id)
+    const rows = data?.preview_data
+    const list = Array.isArray(rows) ? rows : []
+    if (!Array.isArray(rows)) {
+      ElMessage.warning('预览数据格式异常，已按空数组展示')
+    }
+    if (list.length === 0) {
+      previewState.value = 'empty'
+      previewContent.value = ''
+      return
+    }
+    previewState.value = 'data'
+    previewContent.value = JSON.stringify(list, null, 2)
+  } catch (err) {
+    previewState.value = 'error'
+    previewContent.value = ''
+    ElMessage.error(err instanceof Error ? err.message : '预览失败')
+  }
+}
+
+async function confirmDelete(bindingId: number) {
+  try {
+    await deleteDataBinding(bindingId)
+    ElMessage.success('数据绑定已删除')
+    await load()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '删除失败')
+    await load()
+  }
 }
 
 onMounted(load)
@@ -101,7 +136,7 @@ onMounted(load)
           <template #default="{ row }">
             <el-button link type="primary" @click="$router.push(`/data-bindings/${row.id}/edit`)">编辑</el-button>
             <el-button link type="primary" @click="showPreview(row.id)">预览</el-button>
-            <el-popconfirm title="确认删除该数据绑定吗？删除后不可恢复。" @confirm="deleteDataBinding(row.id).then(load)">
+            <el-popconfirm title="确认删除该数据绑定吗？删除后不可恢复。" @confirm="confirmDelete(row.id)">
               <template #reference>
                 <el-button link type="danger">删除</el-button>
               </template>
@@ -120,7 +155,14 @@ onMounted(load)
             </div>
           </div>
         </template>
-        <pre class="preview app-code-block">{{ previewContent }}</pre>
+        <p v-if="previewState === 'idle'" class="binding-list-view__preview-idle">请在列表中点击「预览」查看绑定结果。</p>
+        <el-empty
+          v-else-if="previewState === 'empty'"
+          description="暂无预览数据（后端返回空列表，manual 等类型常见）"
+          :image-size="72"
+        />
+        <el-empty v-else-if="previewState === 'error'" description="预览加载失败，请查看顶部提示或稍后重试" :image-size="72" />
+        <pre v-else class="preview app-code-block">{{ previewContent }}</pre>
       </el-card>
     </div>
   </div>
@@ -135,5 +177,12 @@ onMounted(load)
   white-space: pre-wrap;
   font-size: 12px;
   font-family: Consolas, 'Courier New', monospace;
+}
+
+.binding-list-view__preview-idle {
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
 }
 </style>

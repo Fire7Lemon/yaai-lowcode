@@ -32,33 +32,56 @@ async function load() {
   if (!isEdit.value) {
     return
   }
-  const detail = await getPageTemplate(id.value)
-  if (!detail) {
-    return
+  try {
+    const detail = await getPageTemplate(id.value)
+    if (!detail) {
+      ElMessage.warning('未找到页面模板')
+      return
+    }
+    Object.assign(form, {
+      name: detail.name,
+      code: detail.code,
+      scene_type: detail.scene_type ?? 'portal_home',
+      preview_image: detail.preview_image ?? '',
+      description: detail.description ?? '',
+      status: detail.status,
+      remark: detail.remark ?? '',
+    })
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '模板加载失败')
   }
-  Object.assign(form, {
-    ...detail,
-    preview_image: detail.preview_image ?? '',
-    description: detail.description ?? '',
-    remark: detail.remark ?? '',
-  })
 }
 
 async function submit() {
   const payload = {
-    ...form,
-    scene_type: form.scene_type || null,
-    preview_image: form.preview_image || null,
-    description: form.description || null,
-    remark: form.remark || null,
+    name: form.name.trim(),
+    code: form.code.trim(),
+    scene_type: form.scene_type ? form.scene_type : null,
+    preview_image: form.preview_image.trim() ? form.preview_image.trim() : null,
+    description: form.description.trim() ? form.description.trim() : null,
+    status: form.status,
+    remark: form.remark.trim() ? form.remark.trim() : null,
   }
-  if (isEdit.value) {
-    await updatePageTemplate(id.value, payload)
-  } else {
-    await createPageTemplate(payload)
+  if (!payload.name) {
+    ElMessage.warning('请填写模板名称')
+    return
   }
-  ElMessage.success('模板信息已保存')
-  router.push('/page-templates')
+  if (!payload.code) {
+    ElMessage.warning('请填写模板编码')
+    return
+  }
+
+  try {
+    if (isEdit.value) {
+      await updatePageTemplate(id.value, payload)
+    } else {
+      await createPageTemplate(payload)
+    }
+    ElMessage.success('模板信息已保存')
+    router.push('/page-templates')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '保存失败')
+  }
 }
 
 onMounted(load)

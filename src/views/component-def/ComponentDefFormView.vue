@@ -7,6 +7,7 @@ import { createComponentDef, getComponentDef, updateComponentDef } from '@/api/c
 import JsonCodeEditor from '@/components/common/JsonCodeEditor.vue'
 import SchemaPreviewPanel from '@/components/common/SchemaPreviewPanel.vue'
 import { COMPONENT_GROUP_OPTIONS, COMPONENT_TYPE_OPTIONS } from '@/constants/component'
+import type { ComponentDefCreateInput } from '@/types/component-def'
 
 const route = useRoute()
 const router = useRouter()
@@ -57,50 +58,108 @@ const componentTypeLabelMap: Record<string, string> = {
   friend_links: '友情链接',
 }
 
+/** 非空则校验 JSON.parse；空串映射为 null；类型仍为 string | null。 */
+function validateJsonStringOrNull(label: string, raw: string): string | null {
+  const t = raw.trim()
+  if (!t) {
+    return null
+  }
+  try {
+    JSON.parse(t)
+    return t
+  } catch {
+    throw new Error(`${label}须为合法 JSON 字符串`)
+  }
+}
+
 async function load() {
   if (!isEdit.value) {
     return
   }
-  const detail = await getComponentDef(id.value)
-  if (!detail) {
-    return
+  try {
+    const detail = await getComponentDef(id.value)
+    if (!detail) {
+      ElMessage.warning('未找到组件定义')
+      return
+    }
+    Object.assign(form, {
+      component_key: detail.component_key,
+      component_name: detail.component_name,
+      component_group: detail.component_group ?? 'layout',
+      component_type: detail.component_type ?? 'container',
+      icon: detail.icon ?? '',
+      is_container: detail.is_container,
+      can_bind_data: detail.can_bind_data,
+      can_reuse_as_fragment: detail.can_reuse_as_fragment,
+      prop_schema_json: detail.prop_schema_json ?? '',
+      style_schema_json: detail.style_schema_json ?? '',
+      event_schema_json: detail.event_schema_json ?? '',
+      layout_schema_json: detail.layout_schema_json ?? '',
+      allowed_child_types_json: detail.allowed_child_types_json ?? '',
+      default_props_json: detail.default_props_json ?? '',
+      default_style_json: detail.default_style_json ?? '',
+      sort_order: detail.sort_order ?? 0,
+      status: detail.status,
+      remark: detail.remark ?? '',
+    })
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '组件定义加载失败')
   }
-  Object.assign(form, {
-    ...detail,
-    icon: detail.icon ?? '',
-    prop_schema_json: detail.prop_schema_json ?? '',
-    style_schema_json: detail.style_schema_json ?? '',
-    event_schema_json: detail.event_schema_json ?? '',
-    layout_schema_json: detail.layout_schema_json ?? '',
-    allowed_child_types_json: detail.allowed_child_types_json ?? '',
-    default_props_json: detail.default_props_json ?? '',
-    default_style_json: detail.default_style_json ?? '',
-    remark: detail.remark ?? '',
-  })
+}
+
+function buildPayloadFromForm(): ComponentDefCreateInput {
+  return {
+    component_key: form.component_key.trim(),
+    component_name: form.component_name.trim(),
+    component_group: form.component_group ? form.component_group : null,
+    component_type: form.component_type ? form.component_type : null,
+    icon: form.icon.trim() ? form.icon.trim() : null,
+    is_container: form.is_container,
+    can_bind_data: form.can_bind_data,
+    can_reuse_as_fragment: form.can_reuse_as_fragment,
+    prop_schema_json: validateJsonStringOrNull('属性配置 JSON', form.prop_schema_json),
+    style_schema_json: validateJsonStringOrNull('样式配置 JSON', form.style_schema_json),
+    event_schema_json: validateJsonStringOrNull('事件配置 JSON', form.event_schema_json),
+    layout_schema_json: validateJsonStringOrNull('布局配置 JSON', form.layout_schema_json),
+    allowed_child_types_json: validateJsonStringOrNull('子节点约束 JSON', form.allowed_child_types_json),
+    default_props_json: validateJsonStringOrNull('默认属性 JSON', form.default_props_json),
+    default_style_json: validateJsonStringOrNull('默认样式 JSON', form.default_style_json),
+    sort_order:
+      typeof form.sort_order === 'number' && Number.isFinite(form.sort_order) ? form.sort_order : null,
+    status: form.status,
+    remark: form.remark.trim() ? form.remark.trim() : null,
+  }
 }
 
 async function submit() {
-  const payload = {
-    ...form,
-    icon: form.icon || null,
-    prop_schema_json: form.prop_schema_json || null,
-    style_schema_json: form.style_schema_json || null,
-    event_schema_json: form.event_schema_json || null,
-    layout_schema_json: form.layout_schema_json || null,
-    allowed_child_types_json: form.allowed_child_types_json || null,
-    default_props_json: form.default_props_json || null,
-    default_style_json: form.default_style_json || null,
-    remark: form.remark || null,
+  if (!form.component_key.trim()) {
+    ElMessage.warning('请填写组件标识 (component_key)')
+    return
+  }
+  if (!form.component_name.trim()) {
+    ElMessage.warning('请填写组件名称')
+    return
   }
 
-  if (isEdit.value) {
-    await updateComponentDef(id.value, payload)
-  } else {
-    await createComponentDef(payload)
+  let payload: ComponentDefCreateInput
+  try {
+    payload = buildPayloadFromForm()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '表单校验失败')
+    return
   }
 
-  ElMessage.success('组件定义已保存')
-  router.push('/component-defs')
+  try {
+    if (isEdit.value) {
+      await updateComponentDef(id.value, payload)
+    } else {
+      await createComponentDef(payload)
+    }
+    ElMessage.success('组件定义已保存')
+    router.push('/component-defs')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '保存失败')
+  }
 }
 
 onMounted(load)
@@ -150,7 +209,7 @@ onMounted(load)
                   </el-select>
                 </el-form-item>
                 <el-form-item label="组件类型">
-                  <el-select v-model="form.component_type">
+                  <el-select v-model="form.component_type" filterable allow-create default-first-option>
                     <el-option
                       v-for="item in COMPONENT_TYPE_OPTIONS"
                       :key="item"

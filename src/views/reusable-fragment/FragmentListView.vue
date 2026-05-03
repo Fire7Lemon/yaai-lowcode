@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 
+import { ElMessage } from 'element-plus'
+
 import { deleteReusableFragment, listReusableFragments } from '@/api/reusable-fragment'
 import EntityStatusTag from '@/components/common/EntityStatusTag.vue'
 import PageSearchForm from '@/components/common/PageSearchForm.vue'
@@ -28,8 +30,22 @@ async function load() {
   try {
     const result = await listReusableFragments(query)
     items.value = result.items
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '片段列表加载失败')
+    items.value = []
   } finally {
     loading.value = false
+  }
+}
+
+async function confirmDelete(fragmentId: number) {
+  try {
+    await deleteReusableFragment(fragmentId)
+    ElMessage.success('片段已删除')
+    await load()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '删除失败')
+    await load()
   }
 }
 
@@ -102,7 +118,7 @@ onMounted(load)
           <template #default="{ row }">
             <el-button link type="primary" @click="$router.push(`/reusable-fragments/${row.id}/edit`)">编辑</el-button>
             <el-button link type="primary" @click="$router.push(`/reusable-fragments/${row.id}/editor`)">编辑器</el-button>
-            <el-popconfirm title="确认删除该片段吗？删除后不可恢复。" @confirm="deleteReusableFragment(row.id).then(load)">
+            <el-popconfirm title="确认删除该片段吗？删除后不可恢复。" @confirm="confirmDelete(row.id)">
               <template #reference>
                 <el-button link type="danger">删除</el-button>
               </template>

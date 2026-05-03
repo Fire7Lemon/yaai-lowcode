@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 
+import { ElMessage } from 'element-plus'
+
 import { listComponentDefs, setComponentDefStatus } from '@/api/component-def'
 import EntityStatusTag from '@/components/common/EntityStatusTag.vue'
 import PageSearchForm from '@/components/common/PageSearchForm.vue'
@@ -43,8 +45,23 @@ async function load() {
   try {
     const result = await listComponentDefs(query)
     items.value = result.items
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '组件定义列表加载失败')
+    items.value = []
   } finally {
     loading.value = false
+  }
+}
+
+async function toggleComponentStatus(row: ComponentDef) {
+  const next = !row.status
+  try {
+    await setComponentDefStatus(row.id, next)
+    ElMessage.success(next ? '已启用' : '已停用')
+    await load()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '状态更新失败')
+    await load()
   }
 }
 
@@ -136,7 +153,7 @@ onMounted(load)
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="$router.push(`/component-defs/${row.id}/edit`)">查看/编辑</el-button>
-            <el-button link type="warning" @click="setComponentDefStatus(row.id, !row.status).then(load)">
+            <el-button link type="warning" @click="toggleComponentStatus(row)">
               {{ row.status ? '停用' : '启用' }}
             </el-button>
           </template>
