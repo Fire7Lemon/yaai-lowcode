@@ -7,6 +7,7 @@ import { createComponentDef, getComponentDef, updateComponentDef } from '@/api/c
 import JsonCodeEditor from '@/components/common/JsonCodeEditor.vue'
 import SchemaPreviewPanel from '@/components/common/SchemaPreviewPanel.vue'
 import { COMPONENT_GROUP_OPTIONS, COMPONENT_TYPE_OPTIONS } from '@/constants/component'
+import { YAAI_OFFICIAL_COMPONENT_KEYS } from '@/constants/yaaichannel-component-keys'
 import type { ComponentDefCreateInput } from '@/types/component-def'
 
 const route = useRoute()
@@ -37,6 +38,7 @@ const form = reactive({
 
 const componentGroupLabelMap: Record<string, string> = {
   layout: '布局类',
+  portal_home: '首页门户（YAAI）',
   basic: '基础类',
   content: '内容类',
   data_view: '数据展示类',
@@ -48,6 +50,8 @@ const componentTypeLabelMap: Record<string, string> = {
   container: '容器',
   grid: '网格容器',
   tabs: '标签页容器',
+  business: '业务区块',
+  navigation: '导航区块',
   hero_banner: '首屏横幅',
   news_list: '新闻列表',
   notice_list: '公告列表',
@@ -195,7 +199,7 @@ onMounted(load)
               <p class="app-form-section__description">确定组件身份、用途分类和开关能力。</p>
               <div class="app-form-grid">
                 <el-form-item label="组件标识 (component_key)">
-                  <el-input v-model="form.component_key" placeholder="例如：hero_banner" />
+                  <el-input v-model="form.component_key" placeholder="例如 hero_banner（见下方推荐白名单）" />
                 </el-form-item>
                 <el-form-item label="组件名称"><el-input v-model="form.component_name" placeholder="例如：首页横幅" /></el-form-item>
                 <el-form-item label="组件分组">
@@ -225,6 +229,22 @@ onMounted(load)
                 <el-form-item label="允许沉淀片段"><el-switch v-model="form.can_reuse_as_fragment" /></el-form-item>
                 <el-form-item label="状态"><el-switch v-model="form.status" /></el-form-item>
               </div>
+              <el-alert
+                class="component-form__whitelist-alert"
+                type="info"
+                :closable="false"
+                show-icon
+              >
+                <template #title>推荐使用已与 YAAI 冻结对齐的 component_key</template>
+                <p class="component-form__whitelist-intro">
+                  仍可录入其它标识以兼容历史数据；但与成员 4 前台交付对齐时请以白名单为准。
+                </p>
+                <code class="component-form__whitelist-code">{{ YAAI_OFFICIAL_COMPONENT_KEYS.join(' · ') }}</code>
+                <p class="component-form__whitelist-intro">
+                  历史别名：<code>service_matrix</code>→<code>home_services</code>；<code>event_list</code>→
+                  <code>home_events</code>。新物料勿用别名。
+                </p>
+              </el-alert>
               <el-form-item label="备注">
                 <el-input v-model="form.remark" type="textarea" :rows="4" placeholder="可填写组件使用说明" />
               </el-form-item>
@@ -308,6 +328,28 @@ onMounted(load)
 <style scoped>
 .component-form {
   min-width: 0;
+}
+
+.component-form__whitelist-alert {
+  width: 100%;
+  margin: 12px 0 4px;
+}
+
+.component-form__whitelist-intro {
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.component-form__whitelist-code {
+  display: inline-block;
+  margin: 0 0 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 1.55;
+  background: rgba(15, 23, 42, 0.04);
+  border-radius: 8px;
+  word-break: break-word;
 }
 
 .component-form__field-block {

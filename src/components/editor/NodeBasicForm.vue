@@ -1,14 +1,26 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
 import type { PageNode, UpdatePageNodeInput } from '@/types/page-node'
 import { PAGE_NODE_TYPE_OPTIONS } from '@/constants/component'
+import { YAAI_OFFICIAL_COMPONENT_KEYS, isYaaichannelOfficialComponentKey } from '@/constants/yaaichannel-component-keys'
 
-defineProps<{
+const props = defineProps<{
   node: PageNode
 }>()
 
 const emit = defineEmits<{
   patch: [payload: UpdatePageNodeInput]
 }>()
+
+const whitelistHintKeys = YAAI_OFFICIAL_COMPONENT_KEYS.join(', ')
+
+const showNonOfficialWarn = computed(
+  () =>
+    props.node.node_type !== 'fragment_ref' &&
+    Boolean(props.node.component_key?.trim()) &&
+    !isYaaichannelOfficialComponentKey(props.node.component_key ?? ''),
+)
 </script>
 
 <template>
@@ -24,8 +36,26 @@ const emit = defineEmits<{
     <el-form-item label="组件键（component_key）">
       <el-input
         :model-value="node.component_key ?? ''"
+        placeholder="推荐使用白名单 key，如 hero_banner"
         :disabled="node.node_type === 'fragment_ref'"
         @update:model-value="emit('patch', { component_key: $event || null })"
+      />
+      <el-alert
+        class="property-panel__field-alert node-basic-form__tiny-alert"
+        type="info"
+        :closable="false"
+        show-icon
+      >
+        <template #title>YAAI 推荐区块键（含根容器）</template>
+        <span>{{ whitelistHintKeys }}</span>
+      </el-alert>
+      <el-alert
+        v-if="showNonOfficialWarn"
+        class="property-panel__field-alert node-basic-form__tiny-alert"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="该键不在前台正式白名单中，发布后可能落入 UnknownComponent，请确认。"
       />
     </el-form-item>
     <el-form-item label="slot_name">
@@ -86,5 +116,9 @@ const emit = defineEmits<{
   white-space: normal;
   word-break: break-word;
   line-height: 1.5;
+}
+
+.node-basic-form__tiny-alert {
+  margin-top: 8px;
 }
 </style>

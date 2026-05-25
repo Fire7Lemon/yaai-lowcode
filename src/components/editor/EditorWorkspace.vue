@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 import { listReusableFragments } from '@/api/reusable-fragment'
+import { YAAI_OFFICIAL_COMPONENT_KEYS } from '@/constants/yaaichannel-component-keys'
 import { useComponentDefStore } from '@/stores/component-def'
 import { useDataBindingStore } from '@/stores/data-binding'
 import { useEditorStore, type EditorSourceType } from '@/stores/editor'
@@ -80,8 +81,25 @@ const selectedFragmentNode = computed(() =>
 const fragmentNameMap = computed<Record<number, string>>(() =>
   Object.fromEntries(fragmentItems.value.map((item) => [item.id, item.name])),
 )
-const containerComponentKey = computed(() => componentStore.enabledItems.find((item) => item.is_container)?.component_key ?? null)
-const defaultComponentKey = computed(() => componentStore.enabledItems.find((item) => !item.is_container)?.component_key ?? null)
+const containerComponentKey = computed(() => {
+  const pc = componentStore.enabledItems.find((item) => item.component_key === 'page_container')
+  if (pc) {
+    return 'page_container'
+  }
+  return componentStore.enabledItems.find((item) => item.is_container)?.component_key ?? null
+})
+
+const defaultComponentKey = computed(() => {
+  const enabled = componentStore.enabledItems
+  const byKey = new Map(enabled.map((item) => [item.component_key, item]))
+  for (const key of YAAI_OFFICIAL_COMPONENT_KEYS) {
+    const def = byKey.get(key)
+    if (def && !def.is_container) {
+      return key
+    }
+  }
+  return enabled.find((item) => !item.is_container)?.component_key ?? null
+})
 const fragmentDialogTitle = computed(() =>
   fragmentDialogMode.value === 'create' ? '新增片段引用节点' : '更换引用片段',
 )
