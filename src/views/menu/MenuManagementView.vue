@@ -32,14 +32,14 @@ function buildDefaultCreateForm(): MenuCreateInput {
   return {
     parent_id: null,
     name: '',
-    code: `menu_ui_test_${Date.now()}`,
-    url_type: 'external',
+    code: '',
+    url_type: 'page',
     page_id: null,
-    external_url: 'https://www.example.com',
-    sort_order: 901,
+    external_url: null,
+    sort_order: 0,
     status: true,
-    icon: 'Link',
-    remark: '菜单 UI 联调测试，稍后删除',
+    icon: null,
+    remark: '',
   }
 }
 
@@ -73,6 +73,13 @@ const formParentOptions = computed(() => {
   const exclude =
     showFormDialog.value && formMode.value === 'edit' && editingId.value !== null ? editingId.value : null
   return buildParentOptions(exclude)
+})
+
+const linkedPagePathForForm = computed(() => {
+  if (formModel.value.url_type !== 'page' || formModel.value.page_id === null) {
+    return null
+  }
+  return pages.value.find((p) => p.id === formModel.value.page_id)?.path ?? null
 })
 
 const moveParentOptions = computed(() => {
@@ -308,11 +315,22 @@ onMounted(load)
             <el-radio value="page">站内页面</el-radio>
             <el-radio value="external">外部链接</el-radio>
           </el-radio-group>
+          <el-alert class="menu-view__form-tip" type="info" :closable="false" show-icon>
+            <template #title>与前台路由对齐</template>
+            <span>
+              选择「站内页面」时只填关联页面，前台应跳转到所选 <code>page.path</code>；勿把站内 path 塞进外链字段。
+              选择「外部链接」时再填写完整的 <code>external_url</code>（通常为 https://）。
+            </span>
+          </el-alert>
         </el-form-item>
         <el-form-item v-if="formModel.url_type === 'page'" label="页面" required>
           <el-select v-model="formModel.page_id" placeholder="选择页面" clearable filterable style="width: 100%">
-            <el-option v-for="p in pages" :key="p.id" :label="`${p.name}（${p.code}）`" :value="p.id" />
+            <el-option v-for="p in pages" :key="p.id" :label="`${p.name}（${p.path || p.code}）`" :value="p.id" />
           </el-select>
+          <el-alert v-if="linkedPagePathForForm" class="menu-view__form-tip menu-view__form-tip--compact" type="success" :closable="false" show-icon>
+            <template #title>当前选中页面访问路径</template>
+            <code>{{ linkedPagePathForForm }}</code>
+          </el-alert>
         </el-form-item>
         <el-form-item v-if="formModel.url_type === 'external'" label="外链 URL" required>
           <el-input v-model="formModel.external_url!" type="textarea" :rows="2" />
@@ -436,5 +454,18 @@ onMounted(load)
   margin: 0 0 12px;
   font-size: 13px;
   color: var(--app-text-muted);
+}
+
+.menu-view__form-tip {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.menu-view__form-tip :deep(code) {
+  word-break: break-all;
+}
+
+.menu-view__form-tip--compact {
+  margin-top: 8px;
 }
 </style>

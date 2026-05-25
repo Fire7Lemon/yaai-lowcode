@@ -7,6 +7,7 @@ import { listComponentDefs, setComponentDefStatus } from '@/api/component-def'
 import EntityStatusTag from '@/components/common/EntityStatusTag.vue'
 import PageSearchForm from '@/components/common/PageSearchForm.vue'
 import { COMPONENT_GROUP_OPTIONS, COMPONENT_TYPE_OPTIONS } from '@/constants/component'
+import { YAAI_OFFICIAL_COMPONENT_KEYS } from '@/constants/yaaichannel-component-keys'
 import type { ComponentDef } from '@/types/component-def'
 
 const loading = ref(false)
@@ -19,6 +20,7 @@ const query = reactive({
 
 const componentGroupLabelMap: Record<string, string> = {
   layout: '布局类',
+  portal_home: '首页门户（YAAI）',
   basic: '基础类',
   content: '内容类',
   data_view: '数据展示类',
@@ -30,6 +32,8 @@ const componentTypeLabelMap: Record<string, string> = {
   container: '容器',
   grid: '网格容器',
   tabs: '标签页容器',
+  business: '业务区块',
+  navigation: '导航区块',
   hero_banner: '首屏横幅',
   news_list: '新闻列表',
   notice_list: '公告列表',
@@ -74,7 +78,10 @@ onMounted(load)
       <div class="app-page__title-group">
         <div class="app-page__eyebrow">组件能力配置</div>
         <h1 class="app-page__title">组件定义管理</h1>
-        <p class="app-page__description">在这里配置“组件能做什么、能放什么、能绑定什么”（component_def）。</p>
+        <p class="app-page__description">
+          在这里配置「组件能做什么」（component_def）。与 YAAI 前台对齐的推荐键：
+          <code class="component-list__whitelist">{{ YAAI_OFFICIAL_COMPONENT_KEYS.join(' · ') }}</code>
+        </p>
       </div>
       <div class="app-page__actions">
         <el-button type="primary" @click="$router.push('/component-defs/create')">新增组件定义</el-button>
@@ -167,5 +174,15 @@ onMounted(load)
 <style scoped>
 .list-view {
   min-width: 0;
+}
+
+.component-list__whitelist {
+  display: inline;
+  padding: 1px 4px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(37, 99, 235, 0.08);
+  border-radius: 6px;
+  word-break: break-word;
 }
 </style>

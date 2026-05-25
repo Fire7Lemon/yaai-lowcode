@@ -6,6 +6,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { createPage, getPage, updatePage } from '@/api/page'
 import { PAGE_TYPE_OPTIONS } from '@/constants/page'
 
+/** 与成员 4 YAAI Router 常见路径对齐的提示（占位页仍可选用其它 path，但以已注册路由为准）。 */
+const YAAI_PATH_EXAMPLES_TEXT =
+  '`/`、`/news`、`/services`、`/conference`、`/about/introduction`、`/about/charter`、`/about/regulations`、`/about/leaders`、`/about/branches`、`/about/local`'
+
 const route = useRoute()
 const router = useRouter()
 const id = computed(() => Number(route.params.id))
@@ -97,7 +101,18 @@ onMounted(load)
               <div class="app-form-grid">
                 <el-form-item label="页面名称"><el-input v-model="form.name" placeholder="例如：学校首页" /></el-form-item>
                 <el-form-item label="页面编码"><el-input v-model="form.code" placeholder="例如：school-home" /></el-form-item>
-                <el-form-item label="访问路径"><el-input v-model="form.path" placeholder="例如：/home" /></el-form-item>
+                <el-form-item label="访问路径">
+                  <el-input v-model="form.path" placeholder="例如首页 / ，或栏目 /news（须与 YAAI 已注册 path 一致）" />
+                  <el-alert
+                    type="info"
+                    :closable="false"
+                    show-icon
+                    class="page-form-view__path-hint"
+                  >
+                    <template #title>常用 YAAI 路径示例</template>
+                    <span class="page-form-view__path-hint-text">{{ YAAI_PATH_EXAMPLES_TEXT }}</span>
+                  </el-alert>
+                </el-form-item>
                 <el-form-item label="页面类型">
                   <el-select v-model="form.page_type">
                     <el-option v-for="item in PAGE_TYPE_OPTIONS" :key="item" :label="item" :value="item" />
@@ -135,5 +150,15 @@ onMounted(load)
 <style scoped>
 .page-form-view {
   min-width: 0;
+}
+
+.page-form-view__path-hint {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.page-form-view__path-hint-text {
+  font-size: 13px;
+  line-height: 1.65;
 }
 </style>

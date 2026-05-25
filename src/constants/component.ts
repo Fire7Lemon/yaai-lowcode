@@ -1,5 +1,6 @@
 export const COMPONENT_GROUP_OPTIONS = [
   'layout',
+  'portal_home',
   'basic',
   'content',
   'data_view',
@@ -11,6 +12,8 @@ export const COMPONENT_TYPE_OPTIONS = [
   'container',
   'grid',
   'tabs',
+  'business',
+  'navigation',
   'hero_banner',
   'news_list',
   'notice_list',

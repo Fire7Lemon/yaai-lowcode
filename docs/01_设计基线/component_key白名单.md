@@ -57,3 +57,4 @@
 | 日期 | 说明 |
 |------|------|
 | 2026-05-20 | 首版冻结白名单；废弃 `service_matrix` / `event_list` 二选一，统一为 `home_services` / `home_events` |
+| 2026-05-20 | `yaai-lowcode`：`src/constants/yaaichannel-component-keys.ts` 与此表顺序对齐；编辑器与 mock 沿用本表（见 `低代码数据对齐计划` §10、《数据库清洗计划》§12） |

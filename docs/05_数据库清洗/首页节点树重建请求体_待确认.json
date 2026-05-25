@@ -1,0 +1,10 @@
+{
+  "documentationZh": "本文件仅为占位与安全提示，绝非可直接用于生产/联调的完整 PUT 请求体。在未由后端书面确认 PUT /page-versions/101/node-tree 对新建节点 id、parentId 引用规则之前，禁止使用虚构 nodes 批量覆盖。请参阅 首页节点树重建方案_待确认.md 与同目录后台API修正操作清单_待确认.md。",
+  "putEndpointDiscussed": "/page-versions/101/node-tree",
+  "bodyShouldUseCamelCase": true,
+  "expectedTopLevelShape": {
+    "nodes": []
+  },
+  "whyNodesEmpty": "nodes 留空数组：避免拷贝即执行导致误覆盖。编辑器或分步 API 应先产生真实数据库 id后再组装整树快照。",
+  "propsExamplesLocation": "../后台API修正操作清单_待确认.md §5"
+}

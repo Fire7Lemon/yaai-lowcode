@@ -182,3 +182,47 @@
 --
 -- （以下 ID 若要用于 DELETE / UPDATE，须先执行 §4 引用检查 SQL 并经人工签字）
 -- =============================================================================
+--
+-- -----------------------------------------------------------------------------
+-- 【附录 · 2026-05-20 文档侧】清洗前数据快照.md 落盘时 curl 127.0.0.1:9876 未监听（exit 7），
+-- 以上观测来自历史连通盘点；执行 SQL 前请以「附录 A」curl 重拉 JSON 为准。
+-- -----------------------------------------------------------------------------
+--
+-- -----------------------------------------------------------------------------
+-- 11. 补充只读查询草案（全部保持注释 · 引用检查加深）
+-- -----------------------------------------------------------------------------
+
+-- 11.1 首页指定版本下 component_key 为空的节点计数（核对 YAAI 可用性）
+-- SELECT COUNT(*) AS null_key_cnt
+-- FROM page_node
+-- WHERE page_version_id = 101 AND component_key IS NULL;
+
+-- 11.2 首页指定版本多根计数（parent_id IS NULL）
+-- SELECT id, node_name, node_type, component_key, sort_order
+-- FROM page_node
+-- WHERE page_version_id = 101 AND parent_id IS NULL;
+
+-- 11.3 停用父菜单名下的子菜单（业务核对）
+-- SELECT c.id AS child_id, c.code AS child_code, c.status AS child_status,
+--        p.id AS parent_id, p.code AS parent_code, p.status AS parent_status
+-- FROM menu c
+-- JOIN menu p ON c.parent_id = p.id
+-- WHERE p.status = FALSE OR p.status = 0;
+
+-- 11.4 仍为 page 外链混写（站内 URL 填在 external）
+-- SELECT id, code, url_type, page_id, external_url
+-- FROM menu
+-- WHERE url_type = 'page' AND external_url IS NOT NULL AND TRIM(external_url) <> '';
+
+-- 11.5 测试 component_key 是否在节点表出现（删/停前必跑）
+-- SELECT pn.id, pn.page_version_id, pn.component_key, pn.node_name
+-- FROM page_node pn
+-- WHERE pn.component_key = 'test_component_1777798334444';
+
+-- 11.6 草稿版本被选为页面当前版本（与 API 观测一致时再逐页修）
+-- SELECT p.id AS page_id, p.path, p.current_version_id, pv.status AS pv_status
+-- FROM page p
+-- JOIN page_version pv ON pv.id = p.current_version_id
+-- WHERE pv.status <> 'published';
+
+-- 【再次强调】本节 11.* 仅限 SELECT；任何 DELETE / UPDATE / INSERT 必须备份、双人复核后单行展开执行。
