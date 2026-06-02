@@ -16,6 +16,7 @@ const items = computed<SidebarItem[]>(() => [
   { index: '/page-templates', title: '页面模板' },
   { index: '/reusable-fragments', title: '可复用片段' },
   { index: '/menus', title: '菜单管理' },
+  { index: '/banner-management', title: '轮播图管理' },
   { index: '/component-defs', title: '组件定义' },
   { index: '/data-bindings', title: '数据绑定' },
   { index: '/member-audit', title: '会员审核' },

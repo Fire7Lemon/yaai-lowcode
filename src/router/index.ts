@@ -2,6 +2,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
 import AdminLayout from '@/layouts/AdminLayout.vue'
 
+import { bannerRoutes } from './modules/banner'
 import { componentDefRoutes } from './modules/component-def'
 import { dataBindingRoutes } from './modules/data-binding'
 import { editorRoutes } from './modules/editor'
@@ -29,6 +30,7 @@ const routes: RouteRecordRaw[] = [
           description: '查看项目当前实现范围、接口草案与编辑器入口',
         },
       },
+      ...bannerRoutes,
       ...pageRoutes,
       ...pageTemplateRoutes,
       ...reusableFragmentRoutes,
