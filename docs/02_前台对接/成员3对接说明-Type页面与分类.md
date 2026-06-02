@@ -1,9 +1,14 @@
-> **执行状态（成员3，2026-06-02 第十二轮）**：
+> **执行状态（成员3，2026-06-02 定稿）**：
 > - ✅ 废弃 `conference_page`：白名单/mock 移除、后端 `component_def` id19 status=false（未 DELETE）。
-> - ✅ `/conference`（version 311）不再用 conference_page，已改 `rich_text` 占位（后端缺接口暂不启用）。
+> - ✅ `/conference`（version 311）已改为 `rich_text` 占位（后端缺接口暂不启用）。
 > - ✅ 保持：/news=`news_list`(Type1)、/services=`services_page`(Type3)、/about/introduction=`rich_text`(Type2)、首页 `home_*`；`news.categoryId`(1/2/3) 与 show-list 过滤不变。
-> - ⚠️ **`news_category.parentId → menus.id` 未落地**：`PUT /news-categories/1` 返回 `DATA_CONFLICT`，因 `parentId` 是指向 `news_category.id` 的自关联外键（写 menu.id=11 触发外键冲突）。**需后端决策**（改外键语义 / 新增 owner_menu_id 字段 / 前端改用其它归属方式）。详见 [数据修正执行记录 第十二轮](../05_数据库清洗/数据修正执行记录.md) 与 [新闻分类对应关系报告 §14](../新闻分类与新闻数据对应关系检查报告.md)。
+> - ✅ **新闻分类归属已定稿：方案 B** —— 复用 `news_category.parentId` 表示所属菜单 id（`menus.id`）。
+> - ⚠️ **方案 B 尚未落地数据**：后端 schema 仍为自关联外键，`PUT parentId=11` 返回 `DATA_CONFLICT`；**parentId=11 尚未写入成功**（待后端修复后由成员3受控写入）。
+> - 📋 **方案 A**：不再作为当前执行方案，仅作后端未修复前的临时降级（读全部分类、不按 parentId 筛）。
+> - 📋 **方案 C**：长期规范方案（新增 `owner_menu_id`/`channel_code`），**不作为当前项目执行方案**。
+> - 🔒 **铁律**：**不要把 `menu.id` 当作 `category_id`**；`category_id` **只能传 `news_category.id`**（1/2/3）。
 > - ⏸ 单篇文章分类（Type2/Type4，可选）：本轮未新增。
+> - 详见 [数据修正执行记录 第十二轮](../05_数据库清洗/数据修正执行记录.md)、[新闻分类对应关系报告 §15](../新闻分类与新闻数据对应关系检查报告.md)、[后端待修复清单 §11](../04_后端修复/后端待修复清单.md)。
 
 # 展示端 → 成员3 对接说明（Type 页面 & 分类数据）
 
@@ -107,33 +112,41 @@ news.categoryId  →  news_category.id
 - `categoryId = 3` 表示该条新闻属于「学术动态」分类；
 - 展示端过滤列表时传 **`category_id = news_category.id`**。
 
-### 3.3 `news-categories.parentId` 与 `menus.id` 的关联
+### 3.3 `news-categories.parentId` 与 `menus.id` 的关联（**已定稿：方案 B**）
 
-`news-categories` 需增加/维护 **`parentId`**，指向 **`GET /menus` 中对应页面导航项的 `id`**，用于声明「该分类 Tab 属于哪个站点页面」。
+> 当前项目为了尽快完成功能，采用功能优先方案：**复用 `news_category.parentId` 表示分类所属菜单 id**（不再表示父分类）。
 
-示例：`menus` 中「新闻动态」导航项：
+**字段语义（本项目联调约定）**：
+
+```text
+news_category.id        ：新闻分类主键
+news.categoryId         ：指向 news_category.id，用于新闻筛选
+news_category.parentId  ：本项目中复用为所属菜单 id，即 menus.id
+menu.id                 ：菜单主键
+menu.parentId           ：菜单树父子关系
+```
+
+**真实 menu 示例**（`nav_news` 对应 `/news` 页面）：
 
 ```json
 {
-  "id": 10,
+  "id": 11,
   "parentId": null,
-  "name": "学会介绍",
-  "code": "nav_about",
+  "name": "新闻动态",
+  "code": "nav_news",
   "urlType": "page",
-  "pageId": 11,
-  "sortOrder": 20,
+  "pageId": 8,
+  "sortOrder": 30,
   "status": true
 }
 ```
 
-（新闻页面对应 menu 项请给出真实 `id`，此处仅为结构示例。）
-
-**期望配置：**
+**期望配置（后端修复后由成员3写入，当前尚未写入）**：
 
 ```json
 {
   "id": 1,
-  "parentId": 10,
+  "parentId": 11,
   "name": "学会新闻",
   "code": "news_category_xhxw",
   "sortOrder": 1,
@@ -141,13 +154,17 @@ news.categoryId  →  news_category.id
 }
 ```
 
-展示端逻辑：
+（id=2 通知公告、id=3 学术动态 同样 **parentId=11**。）
 
-1. 根据当前页面的 `pageId` / 路由，找到关联的 **menu.id**；
-2. 从 `news-categories` 中筛选 **`parentId === menu.id`** 的项，作为该页侧栏/Tab；
-3. 用选中项的 **`id`** 调 `show-list`。
+**展示端用法（成员4）**：
 
-> **请成员3确认：** 当前样例里 `parentId` 均为 `null`，需按页面补全 parentId，否则展示端无法区分分类归属。
+1. 当前页面通过 `menus` 找到当前菜单 id（如 `/news` → `nav_news` → **menu.id=11**）。
+2. `GET /news-categories`。
+3. 筛选 **`item.parentId === currentMenu.id`** 的项，作为该页侧栏/Tab。
+4. 点击分类 tab 时，请求 **`/news/show-list?category_id=item.id`**（**item.id 为 news_category.id**）。
+5. **不使用 menu.id 作为 category_id**。
+
+> **当前状态**：方案 B 已定稿，但后端 schema 尚未修复（`parentId` 自关联外键仍存在），`parentId=11` **尚未写入成功**。后端未修复前，展示端可临时降级为读全部分类（方案 A），但 `category_id` 仍只传 `news_category.id`。
 
 ---
 
@@ -193,7 +210,7 @@ Type2（`rich_text`）是**整页单篇文章**，与 Type1 列表、Type3 卡�
 
 - [ ] 删除所有 node-tree 中的 **`conference_page`** 节点；会议相关页改用 Type1/2/3 之一或 `home_events`（仅首页）。
 - [ ] 确认 **`news_list` / `rich_text` / `services_page`** 与页面路径映射（308～312 等）。
-- [ ] **`news-categories`** 补全 **`parentId` → menus.id**。
+- [ ] **`news-categories`** 补全 **`parentId → menus.id`**（**已定方案 B**；待后端取消自关联外键后执行，目标：id 1/2/3 均 parentId=**11**）。
 - [ ] 保证 **`news.categoryId`** 与 **`news_category.id`** 一致（1/2/3），**禁止**用 `menu.id` 当 `category_id`。
 - [ ] （可选）新增单篇文章用 `news-categories` 类型，供 Type2/Type4 绑定。
 
@@ -211,7 +228,7 @@ Type2（`rich_text`）是**整页单篇文章**，与 Type1 列表、Type3 卡�
 
 Network 重点：
 
-- `GET /news-categories` → 200，且含正确 `parentId`
+- `GET /news-categories` → 200；后端修复后应含 **`parentId=11`**（当前仍为 null，schema 未修复）
 - `GET /news/show-list?category_id=1|2|3` → 200，且 `categoryId` 与参数一致
 - `GET /page-versions/{id}/node-tree` → 无 `conference_page`、无未知 componentKey
 
