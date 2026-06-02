@@ -5,6 +5,7 @@ import AdminLayout from '@/layouts/AdminLayout.vue'
 import { componentDefRoutes } from './modules/component-def'
 import { dataBindingRoutes } from './modules/data-binding'
 import { editorRoutes } from './modules/editor'
+import { memberRoutes } from './modules/member'
 import { menuRoutes } from './modules/menu'
 import { pageRoutes } from './modules/page'
 import { pageTemplateRoutes } from './modules/page-template'
@@ -34,6 +35,7 @@ const routes: RouteRecordRaw[] = [
       ...componentDefRoutes,
       ...dataBindingRoutes,
       ...menuRoutes,
+      ...memberRoutes,
       ...editorRoutes,
     ],
   },

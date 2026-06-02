@@ -6,6 +6,8 @@ const cards = [
   { title: '组件定义', path: '/component-defs', description: '管理组件配置中心（component_def）。' },
   { title: '数据绑定', path: '/data-bindings', description: '管理数据绑定配置（data_binding）。' },
   { title: '菜单管理', path: '/menus', description: '维护导航菜单与页面映射（menu）。' },
+  { title: '会员审核', path: '/member-audit', description: '查看并处理个人/单位会员待审核记录。' },
+  { title: '会员订单查看', path: '/member-orders', description: '按 memberId 查询订单，受后端接口能力限制。' },
 ]
 </script>
 

@@ -18,6 +18,8 @@ const items = computed<SidebarItem[]>(() => [
   { index: '/menus', title: '菜单管理' },
   { index: '/component-defs', title: '组件定义' },
   { index: '/data-bindings', title: '数据绑定' },
+  { index: '/member-audit', title: '会员审核' },
+  { index: '/member-orders', title: '会员订单查看' },
 ])
 
 function handleSelect(index: string) {
