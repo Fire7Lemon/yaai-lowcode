@@ -1,6 +1,6 @@
 import type { Banner, BannerListQuery, BannerListResult, BannerWriteInput } from '@/types/banner'
 
-import { getApiBaseUrl, requestJson } from './http-client'
+import { requestFormData, requestJson } from './http-client'
 import { getErrorMessageFromResponse, isSuccessEnvelope } from './response-utils'
 
 type Envelope<T> = {
@@ -159,49 +159,14 @@ export async function deleteBanner(id: number): Promise<number> {
   return id
 }
 
-function joinUrl(base: string, path: string): string {
-  const normalizedBase = base.endsWith('/') ? base.slice(0, -1) : base
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`
-  if (normalizedBase && normalizedBase.startsWith('/')) {
-    if (normalizedPath === normalizedBase || normalizedPath.startsWith(`${normalizedBase}/`)) {
-      return normalizedPath
-    }
-  }
-  return `${normalizedBase}${normalizedPath}`
-}
-
-function resolveUploadPath(baseUrl: string): string {
-  // FileController uses /api/upload. With Vite proxy base '/api' + rewrite(/^\/api/, ''),
-  // request path must be '/api/api/upload' so backend receives '/api/upload'.
-  if (baseUrl.startsWith('/api')) {
-    return '/api/api/upload'
-  }
-  return '/api/upload'
-}
-
 export async function uploadBannerImage(file: File): Promise<string> {
-  const baseUrl = getApiBaseUrl()
-  if (!baseUrl) {
-    throw new Error('VITE_API_BASE_URL is empty.')
-  }
-
   const formData = new FormData()
   formData.append('file', file)
   formData.append('type', 'other-attachment')
 
-  const response = await fetch(joinUrl(baseUrl, resolveUploadPath(baseUrl)), {
-    method: 'POST',
-    body: formData,
-  })
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-  }
-
-  const raw = (await response.json()) as Envelope<unknown>
-  throwIfFailed(raw, 'uploadBannerImage request failed')
-
-  const data = raw?.data
+  // Backend upload endpoint is /api/upload.
+  // With Vite dev proxy '/api' + rewrite(/^\/api/, ''), browser path must be '/api/api/upload'.
+  const data = await requestFormData<unknown>('/api/api/upload', formData)
   if (typeof data === 'string' && data.trim() !== '') {
     return data.trim()
   }

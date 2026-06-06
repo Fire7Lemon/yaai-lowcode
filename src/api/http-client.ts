@@ -16,6 +16,13 @@ function parseJsonSafely<T>(raw: string): T | undefined {
   return JSON.parse(raw) as T
 }
 
+type ResultEnvelope<T> = {
+  code?: number | string
+  success?: boolean
+  message?: string
+  data?: T
+}
+
 export function shouldUseRealApi(): boolean {
   return import.meta.env.VITE_USE_REAL_API === 'true'
 }
@@ -44,4 +51,38 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
 
   const text = await response.text()
   return parseJsonSafely<T>(text) as T
+}
+
+export async function requestFormData<T>(
+  path: string,
+  formData: FormData,
+  init?: Omit<RequestInit, 'body' | 'headers'>
+): Promise<T> {
+  const baseUrl = getApiBaseUrl()
+  if (!baseUrl) {
+    throw new Error('VITE_API_BASE_URL is empty.')
+  }
+
+  const response = await fetch(joinUrl(baseUrl, path), {
+    ...init,
+    method: init?.method ?? 'POST',
+    body: formData,
+  })
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+  }
+
+  const text = await response.text()
+  const raw = parseJsonSafely<ResultEnvelope<T>>(text)
+  if (!raw) {
+    throw new Error('Empty response body')
+  }
+  if (raw.success === false) {
+    throw new Error(raw.message || 'Request failed')
+  }
+  if (raw.success !== true) {
+    throw new Error('Invalid response envelope')
+  }
+  return raw.data as T
 }
