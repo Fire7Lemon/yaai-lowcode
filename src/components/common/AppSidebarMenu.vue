@@ -17,10 +17,13 @@ const items = computed<SidebarItem[]>(() => [
   { index: '/reusable-fragments', title: '可复用片段' },
   { index: '/menus', title: '菜单管理' },
   { index: '/banner-management', title: '轮播图管理' },
+  { index: '/news', title: '新闻管理' },
+  { index: '/news-categories', title: '新闻分类管理' },
   { index: '/component-defs', title: '组件定义' },
   { index: '/data-bindings', title: '数据绑定' },
   { index: '/member-audit', title: '会员审核' },
   { index: '/member-orders', title: '会员订单查看' },
+  { index: '/log', title: '操作日志管理' },
 ])
 
 function handleSelect(index: string) {

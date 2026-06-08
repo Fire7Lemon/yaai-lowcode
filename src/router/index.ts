@@ -8,6 +8,9 @@ import { dataBindingRoutes } from './modules/data-binding'
 import { editorRoutes } from './modules/editor'
 import { memberRoutes } from './modules/member'
 import { menuRoutes } from './modules/menu'
+import { newsCategoryRoutes } from './modules/news-category'
+import { newsRoutes } from './modules/news'
+import { operationLogRoutes } from './modules/operation-log'
 import { pageRoutes } from './modules/page'
 import { pageTemplateRoutes } from './modules/page-template'
 import { reusableFragmentRoutes } from './modules/reusable-fragment'
@@ -37,6 +40,9 @@ const routes: RouteRecordRaw[] = [
       ...componentDefRoutes,
       ...dataBindingRoutes,
       ...menuRoutes,
+      ...newsRoutes,
+      ...newsCategoryRoutes,
+      ...operationLogRoutes,
       ...memberRoutes,
       ...editorRoutes,
     ],
