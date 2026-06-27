@@ -24,6 +24,9 @@ const items = computed<SidebarItem[]>(() => [
   { index: '/member-audit', title: '会员审核' },
   { index: '/member-orders', title: '会员订单查看' },
   { index: '/log', title: '操作日志管理' },
+  { index: '/permission', title: '权限管理' },
+  { index: '/role', title: '角色管理' },
+  { index: '/member-role', title: '会员角色分配' },
 ])
 
 function handleSelect(index: string) {

@@ -16,18 +16,14 @@ import { getErrorMessageFromResponse } from './response-utils'
 
 export const pageVersionApiDrafts = {
   list: apiDraftMeta('/pages/{pageId}/versions', 'GET', true),
-  detail: apiDraftMeta('/page-versions/{id}', 'GET', true),
+  detail: apiDraftMeta('/pages/{pageId}/versions/{id}', 'GET', true),
   create: apiDraftMeta('/pages/{pageId}/versions', 'POST', true),
-  remove: apiDraftMeta('/page-versions/{id}', 'DELETE', false, 'TODO: 仅允许删除未发布版本'),
-  createFromTemplate: apiDraftMeta(
-    '/pages/{pageId}/versions/from-template',
-    'POST',
-    true,
-  ),
-  publish: apiDraftMeta('/page-versions/{id}/publish', 'POST', false, 'TODO: 发布异常时是否整体回滚待确认'),
-  lock: apiDraftMeta('/page-versions/{id}/lock', 'POST', false, 'TODO: 是否改为 PATCH 待确认'),
-  unlock: apiDraftMeta('/page-versions/{id}/unlock', 'POST', false, 'TODO: 是否改为 PATCH 待确认'),
-  clone: apiDraftMeta('/page-versions/{id}/clone', 'POST', false, 'TODO: version_name 不传时的命名规则待确认'),
+  remove: apiDraftMeta('/pages/{pageId}/versions/{id}', 'DELETE', true, '仅允许删除未发布版本（后端约束）'),
+  createFromTemplate: apiDraftMeta('/pages/{pageId}/versions/from-template', 'POST', true),
+  publish: apiDraftMeta('/pages/{pageId}/versions/{id}/publish', 'POST', true),
+  lock: apiDraftMeta('/pages/{pageId}/versions/{id}/lock', 'POST', true),
+  unlock: apiDraftMeta('/pages/{pageId}/versions/{id}/unlock', 'POST', true),
+  clone: apiDraftMeta('/pages/{pageId}/versions/{id}/clone', 'POST', true),
 }
 
 type Envelope<T> = {
@@ -41,7 +37,15 @@ function now() {
   return new Date().toISOString()
 }
 
-function createVersionRecord(pageId: number, payload: { version_name: string | null; source_type: PageVersion['source_type']; source_id: number | null; remark: string | null }): PageVersion {
+function createVersionRecord(
+  pageId: number,
+  payload: {
+    version_name: string | null
+    source_type: PageVersion['source_type']
+    source_id: number | null
+    remark: string | null
+  },
+): PageVersion {
   const nextVersionNo =
     Math.max(0, ...pageVersions.filter((item) => item.page_id === pageId).map((item) => item.version_no)) + 1
 
@@ -283,29 +287,73 @@ function buildPageVersionQueryParams(query: PageVersionQuery): string {
   return text ? `?${text}` : ''
 }
 
-function isNetworkUnreachableError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
-  return (
-    message.includes('failed to fetch')
-    || message.includes('network')
-    || message.includes('timed out')
-    || message.includes('timeout')
-    || message.includes('econnrefused')
-    || message.includes('enotfound')
-  )
+function buildCreatePageVersionRequestBody(payload: CreatePageVersionPayload): Record<string, unknown> {
+  return {
+    versionName: payload.version_name,
+    sourceType: payload.source_type ?? 'manual',
+    sourceId: payload.source_id,
+    remark: payload.remark,
+  }
+}
+
+function extractDeletePageVersionId(raw: unknown, requestedId: number): number {
+  throwIfEnvelopeFailed(raw, 'deletePageVersion request failed')
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return raw
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return requestedId
+  }
+  const root = raw as Record<string, unknown>
+  const data = root.data
+  if (typeof data === 'number' && Number.isFinite(data)) {
+    return data
+  }
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const nestedId = (data as Record<string, unknown>).id
+    if (typeof nestedId === 'number' && Number.isFinite(nestedId)) {
+      return nestedId
+    }
+  }
+  return requestedId
+}
+
+function mapPublishPageVersionResponse(raw: unknown): PublishPageVersionResponse {
+  throwIfEnvelopeFailed(raw, 'publishPageVersion request failed')
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('publishPageVersion response is empty')
+  }
+  const root = raw as Record<string, unknown>
+  const data = (root.data ?? root) as Record<string, unknown>
+  const pageRaw = (data.page ?? {}) as Record<string, unknown>
+  const versionRaw = data.page_version ?? data.pageVersion
+  if (!versionRaw) {
+    throw new Error('publishPageVersion response missing page_version payload')
+  }
+  return {
+    page: {
+      id: Number(pageRaw.id ?? 0),
+      current_version_id: toNullableNumber(pageRaw.current_version_id ?? pageRaw.currentVersionId),
+    },
+    page_version: mapPageVersion(versionRaw),
+  }
+}
+
+function buildCloneQueryParams(payload?: Partial<ClonePageVersionPayload>): string {
+  const search = new URLSearchParams()
+  if (payload?.version_name) {
+    search.set('versionName', payload.version_name)
+  }
+  const text = search.toString()
+  return text ? `?${text}` : ''
 }
 
 export async function listPageVersions(pageId: number, query: PageVersionQuery = {}): Promise<ListResult<PageVersion>> {
   if (shouldUseRealApi()) {
-    try {
-      const raw = await requestJson<unknown>(`/pages/${pageId}/versions${buildPageVersionQueryParams(query)}`, {
-        method: 'GET',
-      })
-      return extractPageVersionListPayload(raw)
-    } catch (error) {
-      console.error('[listPageVersions] real api failed in integration mode.', error)
-      throw error
-    }
+    const raw = await requestJson<unknown>(`/pages/${pageId}/versions${buildPageVersionQueryParams(query)}`, {
+      method: 'GET',
+    })
+    return extractPageVersionListPayload(raw)
   }
 
   const items = pageVersions
@@ -314,26 +362,40 @@ export async function listPageVersions(pageId: number, query: PageVersionQuery =
   return mockResolve(buildListResult(items))
 }
 
-export async function getPageVersion(id: number): Promise<PageVersion | undefined> {
+export async function getPageVersion(pageId: number, id: number): Promise<PageVersion | undefined> {
   if (shouldUseRealApi()) {
-    try {
-      const raw = await requestJson<unknown>(`/page-versions/${id}`, {
-        method: 'GET',
-      })
-      throwIfEnvelopeFailed(raw, 'getPageVersion request failed')
-
-      const payload = extractPageVersionDetailPayload(raw)
-      return mapPageVersion(payload)
-    } catch (error) {
-      console.error('[getPageVersion] real api failed in integration mode.', error)
-      throw error
-    }
+    const raw = await requestJson<unknown>(`/pages/${pageId}/versions/${id}`, {
+      method: 'GET',
+    })
+    throwIfEnvelopeFailed(raw, 'getPageVersion request failed')
+    return mapPageVersion(extractPageVersionDetailPayload(raw))
   }
 
-  return mockResolve(pageVersions.find((item) => item.id === id))
+  const item = pageVersions.find((row) => row.id === id && row.page_id === pageId)
+  return mockResolve(item)
 }
 
 export async function createPageVersion(pageId: number, payload: CreatePageVersionPayload): Promise<PageVersion> {
+  if (shouldUseRealApi()) {
+    if (payload.source_type === 'clone_version' && payload.source_id) {
+      const cloned = await clonePageVersion(pageId, payload.source_id, {
+        version_name: payload.version_name,
+        remark: payload.remark,
+      })
+      if (!cloned) {
+        throw new Error('clonePageVersion returned empty result')
+      }
+      return cloned
+    }
+
+    const raw = await requestJson<unknown>(`/pages/${pageId}/versions`, {
+      method: 'POST',
+      body: JSON.stringify(buildCreatePageVersionRequestBody(payload)),
+    })
+    throwIfEnvelopeFailed(raw, 'createPageVersion request failed')
+    return mapPageVersion(extractPageVersionDetailPayload(raw))
+  }
+
   const item = createVersionRecord(pageId, {
     version_name: payload.version_name,
     source_type: payload.source_type,
@@ -354,34 +416,22 @@ export async function createPageVersionFromTemplate(
 ): Promise<PageVersion> {
   if (shouldUseRealApi()) {
     const form = new URLSearchParams()
-    form.set('pageId', String(pageId))
     form.set('templateId', String(payload.template_id))
     form.set('versionName', payload.version_name ?? '')
     form.set('remark', payload.remark ?? '')
 
-    try {
-      const raw = await requestJson<Envelope<unknown>>(`/pages/${pageId}/versions/from-template`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: form.toString(),
-      })
+    const raw = await requestJson<Envelope<unknown>>(`/pages/${pageId}/versions/from-template`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: form.toString(),
+    })
 
-      if (raw?.success === false) {
-        throw new Error(raw.message || 'from-template request failed')
-      }
-
-      return mapPageVersion(raw?.data)
-    } catch (error) {
-      // TEMP: backend compatibility for current delivery
-      // Do not fallback to mock for this key integration API.
-      console.error('[createPageVersionFromTemplate] real api failed in integration mode.', error)
-      throw error
-    }
+    throwIfEnvelopeFailed(raw, 'createPageVersionFromTemplate request failed')
+    return mapPageVersion(extractPageVersionDetailPayload(raw))
   }
 
-  // TODO: 后端正式实现时建议对“版本创建 + 模板节点复制”采用事务回滚。
   const item = createVersionRecord(pageId, {
     version_name: payload.version_name,
     source_type: 'template',
@@ -393,8 +443,15 @@ export async function createPageVersionFromTemplate(
   return mockResolve(item)
 }
 
-export async function deletePageVersion(id: number): Promise<IdResponse | undefined> {
-  const index = pageVersions.findIndex((item) => item.id === id && item.status !== 'published')
+export async function deletePageVersion(pageId: number, id: number): Promise<IdResponse | undefined> {
+  if (shouldUseRealApi()) {
+    const raw = await requestJson<unknown>(`/pages/${pageId}/versions/${id}`, {
+      method: 'DELETE',
+    })
+    return { id: extractDeletePageVersionId(raw, id) }
+  }
+
+  const index = pageVersions.findIndex((item) => item.id === id && item.page_id === pageId && item.status !== 'published')
   if (index === -1) {
     return mockResolve(undefined)
   }
@@ -402,8 +459,16 @@ export async function deletePageVersion(id: number): Promise<IdResponse | undefi
   return mockResolve({ id })
 }
 
-export async function publishPageVersion(id: number): Promise<PublishPageVersionResponse | undefined> {
-  const version = pageVersions.find((item) => item.id === id)
+export async function publishPageVersion(pageId: number, id: number): Promise<PublishPageVersionResponse | undefined> {
+  if (shouldUseRealApi()) {
+    const raw = await requestJson<unknown>(`/pages/${pageId}/versions/${id}/publish`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+    return mapPublishPageVersionResponse(raw)
+  }
+
+  const version = pageVersions.find((item) => item.id === id && item.page_id === pageId)
   if (!version) {
     return mockResolve(undefined)
   }
@@ -435,8 +500,17 @@ export async function publishPageVersion(id: number): Promise<PublishPageVersion
   })
 }
 
-export async function lockPageVersion(id: number): Promise<PageVersion | undefined> {
-  const version = pageVersions.find((item) => item.id === id)
+export async function lockPageVersion(pageId: number, id: number): Promise<PageVersion | undefined> {
+  if (shouldUseRealApi()) {
+    const raw = await requestJson<unknown>(`/pages/${pageId}/versions/${id}/lock`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+    throwIfEnvelopeFailed(raw, 'lockPageVersion request failed')
+    return mapPageVersion(extractPageVersionDetailPayload(raw))
+  }
+
+  const version = pageVersions.find((item) => item.id === id && item.page_id === pageId)
   if (!version) {
     return mockResolve(undefined)
   }
@@ -445,8 +519,17 @@ export async function lockPageVersion(id: number): Promise<PageVersion | undefin
   return mockResolve(version)
 }
 
-export async function unlockPageVersion(id: number): Promise<PageVersion | undefined> {
-  const version = pageVersions.find((item) => item.id === id)
+export async function unlockPageVersion(pageId: number, id: number): Promise<PageVersion | undefined> {
+  if (shouldUseRealApi()) {
+    const raw = await requestJson<unknown>(`/pages/${pageId}/versions/${id}/unlock`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+    throwIfEnvelopeFailed(raw, 'unlockPageVersion request failed')
+    return mapPageVersion(extractPageVersionDetailPayload(raw))
+  }
+
+  const version = pageVersions.find((item) => item.id === id && item.page_id === pageId)
   if (!version) {
     return mockResolve(undefined)
   }
@@ -455,20 +538,37 @@ export async function unlockPageVersion(id: number): Promise<PageVersion | undef
   return mockResolve(version)
 }
 
-export async function setPageVersionLock(id: number, isLocked: boolean): Promise<PageVersion | undefined> {
-  return isLocked ? lockPageVersion(id) : unlockPageVersion(id)
+export async function setPageVersionLock(
+  pageId: number,
+  id: number,
+  isLocked: boolean,
+): Promise<PageVersion | undefined> {
+  return isLocked ? lockPageVersion(pageId, id) : unlockPageVersion(pageId, id)
 }
 
 export async function clonePageVersion(
+  pageId: number,
   id: number,
   payload?: Partial<ClonePageVersionPayload>,
 ): Promise<PageVersion | undefined> {
-  const version = pageVersions.find((item) => item.id === id)
+  if (shouldUseRealApi()) {
+    const raw = await requestJson<unknown>(
+      `/pages/${pageId}/versions/${id}/clone${buildCloneQueryParams(payload)}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+    )
+    throwIfEnvelopeFailed(raw, 'clonePageVersion request failed')
+    return mapPageVersion(extractPageVersionDetailPayload(raw))
+  }
+
+  const version = pageVersions.find((item) => item.id === id && item.page_id === pageId)
   if (!version) {
     return mockResolve(undefined)
   }
 
-  return createPageVersion(version.page_id, {
+  return createPageVersion(pageId, {
     version_name: payload?.version_name ?? `${version.version_name ?? '版本'}副本`,
     source_type: 'clone_version',
     source_id: version.id,

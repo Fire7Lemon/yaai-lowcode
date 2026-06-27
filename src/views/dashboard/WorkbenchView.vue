@@ -10,6 +10,9 @@ const cards = [
   { title: '新闻管理', path: '/news', description: '维护新闻内容数据（news），支持查询与增删改查。' },
   { title: '新闻分类管理', path: '/news-categories', description: '维护新闻分类数据（news_category）。' },
   { title: '操作日志管理', path: '/log', description: '查看系统操作日志并支持删除记录（operation_log）。' },
+  { title: '权限管理', path: '/permission', description: '维护系统权限数据（permission）。' },
+  { title: '角色管理', path: '/role', description: '维护角色及其权限绑定（role）。' },
+  { title: '会员角色分配', path: '/member-role', description: '按 memberId 分配和清理角色（member_role）。' },
   { title: '会员审核', path: '/member-audit', description: '查看并处理个人/单位会员待审核记录。' },
   { title: '会员订单查看', path: '/member-orders', description: '按 memberId 查询订单，受后端接口能力限制。' },
 ]

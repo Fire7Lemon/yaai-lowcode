@@ -94,7 +94,7 @@ async function handleCreate() {
 
 async function handlePublish(versionId: number) {
   try {
-    await publishPageVersion(versionId)
+    await publishPageVersion(pageId.value, versionId)
     ElMessage.success('已提交发布')
     await load()
   } catch (err) {
@@ -105,7 +105,7 @@ async function handlePublish(versionId: number) {
 
 async function handleClone(versionId: number) {
   try {
-    await clonePageVersion(versionId)
+    await clonePageVersion(pageId.value, versionId)
     ElMessage.success('版本已复制')
     await load()
   } catch (err) {
@@ -116,7 +116,7 @@ async function handleClone(versionId: number) {
 
 async function handleToggleLock(versionId: number, locked: boolean) {
   try {
-    await setPageVersionLock(versionId, locked)
+    await setPageVersionLock(pageId.value, versionId, locked)
     ElMessage.success(locked ? '已锁定' : '已解锁')
     await load()
   } catch (err) {
@@ -127,7 +127,7 @@ async function handleToggleLock(versionId: number, locked: boolean) {
 
 async function handleDelete(versionId: number) {
   try {
-    await deletePageVersion(versionId)
+    await deletePageVersion(pageId.value, versionId)
     ElMessage.success('版本已删除')
     await load()
   } catch (err) {

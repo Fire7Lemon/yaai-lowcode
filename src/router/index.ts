@@ -7,13 +7,16 @@ import { componentDefRoutes } from './modules/component-def'
 import { dataBindingRoutes } from './modules/data-binding'
 import { editorRoutes } from './modules/editor'
 import { memberRoutes } from './modules/member'
+import { memberRoleRoutes } from './modules/member-role'
 import { menuRoutes } from './modules/menu'
 import { newsCategoryRoutes } from './modules/news-category'
 import { newsRoutes } from './modules/news'
 import { operationLogRoutes } from './modules/operation-log'
 import { pageRoutes } from './modules/page'
 import { pageTemplateRoutes } from './modules/page-template'
+import { permissionRoutes } from './modules/permission'
 import { reusableFragmentRoutes } from './modules/reusable-fragment'
+import { roleRoutes } from './modules/role'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -44,6 +47,9 @@ const routes: RouteRecordRaw[] = [
       ...newsCategoryRoutes,
       ...operationLogRoutes,
       ...memberRoutes,
+      ...permissionRoutes,
+      ...roleRoutes,
+      ...memberRoleRoutes,
       ...editorRoutes,
     ],
   },
