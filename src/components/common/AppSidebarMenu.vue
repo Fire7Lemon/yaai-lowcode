@@ -1,36 +1,58 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-interface SidebarItem {
-  index: string
-  title: string
-}
+import {
+  WORKBENCH_MENU_ITEM,
+  getActiveGroupKey,
+  getActiveMenuPath,
+  getSidebarMenuGroups,
+  isMenuItemActive,
+} from '@/config/admin-menu'
 
 const router = useRouter()
 const route = useRoute()
 
-const items = computed<SidebarItem[]>(() => [
-  { index: '/workbench', title: '工作台' },
-  { index: '/pages', title: '页面管理' },
-  { index: '/page-templates', title: '页面模板' },
-  { index: '/reusable-fragments', title: '可复用片段' },
-  { index: '/menus', title: '菜单管理' },
-  { index: '/banner-management', title: '轮播图管理' },
-  { index: '/news', title: '新闻管理' },
-  { index: '/news-categories', title: '新闻分类管理' },
-  { index: '/component-defs', title: '组件定义' },
-  { index: '/data-bindings', title: '数据绑定' },
-  { index: '/member-audit', title: '会员审核' },
-  { index: '/member-orders', title: '会员订单查看' },
-  { index: '/log', title: '操作日志管理' },
-  { index: '/permission', title: '权限管理' },
-  { index: '/role', title: '角色管理' },
-  { index: '/member-role', title: '会员角色分配' },
-])
+const menuGroups = getSidebarMenuGroups()
 
-function handleSelect(index: string) {
-  router.push(index)
+const expandedGroups = ref<Record<string, boolean>>({})
+
+const activeMenuPath = computed(() => getActiveMenuPath(route.path))
+const activeGroupKey = computed(() => getActiveGroupKey(route.path))
+const isWorkbenchActive = computed(() => isMenuItemActive(WORKBENCH_MENU_ITEM, route.path))
+
+function syncExpandedGroups() {
+  const next: Record<string, boolean> = { ...expandedGroups.value }
+  const currentGroupKey = activeGroupKey.value
+
+  if (currentGroupKey) {
+    next[currentGroupKey] = true
+  }
+
+  expandedGroups.value = next
+}
+
+watch(
+  () => route.path,
+  () => {
+    syncExpandedGroups()
+  },
+  { immediate: true },
+)
+
+function toggleGroup(groupKey: string) {
+  expandedGroups.value = {
+    ...expandedGroups.value,
+    [groupKey]: !expandedGroups.value[groupKey],
+  }
+}
+
+function isGroupExpanded(groupKey: string) {
+  return expandedGroups.value[groupKey] === true
+}
+
+function navigate(path: string) {
+  router.push(path)
 }
 </script>
 
@@ -43,18 +65,45 @@ function handleSelect(index: string) {
         <div class="sidebar__brand-subtitle">YAAI 后台控制台</div>
       </div>
     </div>
-    <el-menu
-      :default-active="route.path"
-      class="sidebar__menu"
-      background-color="#0f172a"
-      text-color="#cbd5e1"
-      active-text-color="#ffffff"
-      @select="handleSelect"
-    >
-      <el-menu-item v-for="item in items" :key="item.index" :index="item.index">
-        {{ item.title }}
-      </el-menu-item>
-    </el-menu>
+
+    <div class="sidebar__body">
+      <button
+        type="button"
+        class="sidebar__workbench"
+        :class="{ 'is-active': isWorkbenchActive }"
+        @click="navigate(WORKBENCH_MENU_ITEM.path)"
+      >
+        {{ WORKBENCH_MENU_ITEM.title }}
+      </button>
+
+      <div class="sidebar__groups">
+        <section v-for="group in menuGroups" :key="group.key" class="sidebar__group">
+          <button
+            type="button"
+            class="sidebar__group-header"
+            :class="{ 'is-expanded': isGroupExpanded(group.key), 'is-active-group': activeGroupKey === group.key }"
+            @click="toggleGroup(group.key)"
+          >
+            <span class="sidebar__group-indicator" aria-hidden="true" />
+            <span class="sidebar__group-title">{{ group.title }}</span>
+            <span class="sidebar__group-arrow" :class="{ 'is-expanded': isGroupExpanded(group.key) }">›</span>
+          </button>
+
+          <div v-show="isGroupExpanded(group.key)" class="sidebar__group-children">
+            <button
+              v-for="child in group.children"
+              :key="child.key"
+              type="button"
+              class="sidebar__child"
+              :class="{ 'is-active': activeMenuPath === child.path }"
+              @click="navigate(child.path)"
+            >
+              {{ child.title }}
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -104,19 +153,132 @@ function handleSelect(index: string) {
   font-size: 12px;
 }
 
-.sidebar__menu {
+.sidebar__body {
   flex: 1;
-  border-right: none;
+  overflow: auto;
+  padding: 12px 10px 16px;
 }
 
-.sidebar__menu :deep(.el-menu-item) {
+.sidebar__workbench {
+  width: 100%;
   height: 46px;
-  margin: 6px 10px;
+  margin-bottom: 12px;
+  border: none;
   border-radius: 12px;
+  background: rgba(30, 41, 59, 0.92);
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
 }
 
-.sidebar__menu :deep(.el-menu-item.is-active) {
-  background: linear-gradient(90deg, rgba(37, 99, 235, 0.85), rgba(59, 130, 246, 0.92)) !important;
+.sidebar__workbench:hover {
+  background: rgba(51, 65, 85, 0.95);
+}
+
+.sidebar__workbench.is-active {
+  color: #ffffff;
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.85), rgba(59, 130, 246, 0.92));
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.2);
+}
+
+.sidebar__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar__group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar__group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(203, 213, 225, 0.88);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.sidebar__group-header:hover {
+  background: rgba(30, 41, 59, 0.72);
+  color: #f8fafc;
+}
+
+.sidebar__group-header.is-active-group {
+  color: #ffffff;
+}
+
+.sidebar__group-indicator {
+  width: 3px;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(96, 165, 250, 0.55);
+}
+
+.sidebar__group-header.is-active-group .sidebar__group-indicator {
+  background: #60a5fa;
+}
+
+.sidebar__group-title {
+  flex: 1;
+  text-align: left;
+}
+
+.sidebar__group-arrow {
+  color: rgba(148, 163, 184, 0.9);
+  font-size: 16px;
+  line-height: 1;
+  transform: rotate(90deg);
+  transition: transform 0.18s ease;
+}
+
+.sidebar__group-arrow.is-expanded {
+  transform: rotate(270deg);
+}
+
+.sidebar__group-children {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 8px;
+}
+
+.sidebar__child {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px 0 18px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.sidebar__child:hover {
+  background: rgba(30, 41, 59, 0.88);
+  color: #ffffff;
+}
+
+.sidebar__child.is-active {
+  color: #ffffff;
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.85), rgba(59, 130, 246, 0.92));
   box-shadow: 0 12px 24px rgba(37, 99, 235, 0.2);
 }
 </style>
